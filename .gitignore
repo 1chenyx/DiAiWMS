@@ -1,103 +1,62 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-*.manifest
-*.spec
-
-# Virtual environments
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDE
-.vscode/
-.idea/
-*.sw?
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-
-# Logs
-/logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
 # Environment files
 .env
 .env.local
 .env.production
 .env.development
 .env.test
-webapi/config/.env
-webui/.env
-webui/.env.development
-webui/.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+ENV/
+
+# Logs
+logs/
+*.log
 
 # Database
 *.sqlite
 *.sqlite3
 *.db
-app_dev.sqlite
-webapi/app_dev.sqlite
-webui/app_dev.sqlite
 
-# Node
-node_modules/
-dist/
-dist-ssr/
-*.local
-
-# Test files
-test_*.py
-test_api.py
-test_complete_*.py
-test_create_*.py
-test_import.py
-test_openapi.py
-test_swagger.py
-test_tags.py
-test_start_*.py
-test_update_*.py
-openapi.json
-swagger_content.html
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Cache
+# Test files
+test_*.py
+
+# Node modules
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
 .cache/
-*.pyc
-.mypy_cache/
-.dmypy.json
-dmypy.json
-.pytest_cache/
-.coverage
-htmlcov/
