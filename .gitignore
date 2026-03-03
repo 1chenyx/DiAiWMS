@@ -20,11 +20,13 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.manifest
+*.spec
 
-# Virtual Environment
-.venv/
-venv/
+# Virtual environments
+.venv
 env/
+venv/
 ENV/
 env.bak/
 venv.bak/
@@ -32,45 +34,70 @@ venv.bak/
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
+*.sw?
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 
 # Logs
-logs/
+/logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+webapi/config/.env
+webui/.env
+webui/.env.development
+webui/.env.production
 
 # Database
 *.sqlite
 *.sqlite3
 *.db
+app_dev.sqlite
+webapi/app_dev.sqlite
+webui/app_dev.sqlite
 
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Node modules (webui)
+# Node
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+dist/
+dist-ssr/
+*.local
+
+# Test files
+test_*.py
+test_api.py
+test_complete_*.py
+test_create_*.py
+test_import.py
+test_openapi.py
+test_swagger.py
+test_tags.py
+test_start_*.py
+test_update_*.py
+openapi.json
+swagger_content.html
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Test files
-test_*.py
-openapi.json
-swagger_content.html
-
-# Docker
-*.pid
-*.seed
-*.pid.lock
-
-# Temporary files
-*.tmp
-*.temp
+# Cache
 .cache/
+*.pyc
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytest_cache/
+.coverage
+htmlcov/
