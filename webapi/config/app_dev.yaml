@@ -1,0 +1,38 @@
+# 请根据自身需求修改
+app_title: ModernWMS-dev
+app_summary: ModernWMS API
+app_description: ModernWMS API for Warehouse Management System
+app_version: 1.0.0
+app_debug: true
+app_log_serialize: false
+app_log_outdir: ./logs
+app_disable_docs: false
+app_allow_credentials: true
+app_allow_origins:
+  - '*'
+app_allow_methods:
+  - '*'
+app_allow_headers:
+  - '*'
+# #
+db_drivername: postgresql+asyncpg
+db_async_drivername: postgresql+asyncpg
+db_database: WMS
+db_username: WMS
+db_password: "123456"
+db_host: localhost
+db_port: 5432
+db_charset: utf8
+# 主从数据库配置
+db_slave_host:
+db_slave_port:
+# #
+jwt_audience: ModernWMS
+jwt_issuer: ModernWMS
+jwt_signing_key: ModernWMS_SigningKey
+jwt_expire_minute: 60
+# #
+redis_host: 49.235.83.195
+redis_port: 6379
+redis_db: 0
+redis_password: "cyx123456"

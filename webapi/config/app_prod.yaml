@@ -1,0 +1,25 @@
+# 请根据自身需求修改
+app_title: xApp-prod
+app_summary: xxApp-prod
+app_description: xxxApp-prod
+app_version: 1.0.0
+app_debug: false
+app_log_serialize: false
+app_log_outdir: ./logs
+app_disable_docs: true
+app_allow_credentials: true
+app_allow_origins:
+  - '*'
+app_allow_methods:
+  - '*'
+app_allow_headers:
+  - '*'
+# #
+db_drivername: sqlite
+db_async_drivername: sqlite+aiosqlite
+db_database: app_prod.sqlite
+db_username:
+db_password:
+db_host:
+db_port:
+db_charset:
