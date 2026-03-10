@@ -27,8 +27,12 @@ class CustomerService(TenantAwareService[CustomerRepository, Customer]):
         customer_name: Optional[str] = None,
         current_user: Optional[CurrentUser] = None
     ) -> Tuple[List[CustomerViewModel], int]:
+        search_params = {}
+        if customer_name:
+            search_params["customer_name"] = customer_name
+        
         entities, totals = await self._repository.search_by_tenant(
-            page_index, page_size, current_user.tenant_id, customer_name
+            page_index, page_size, current_user.tenant_id, search_params
         )
 
         data = [
@@ -51,7 +55,7 @@ class CustomerService(TenantAwareService[CustomerRepository, Customer]):
         return data, totals
 
     async def get_all(self, current_user: CurrentUser) -> List[CustomerViewModel]:
-        entities = await self._repository.get_all(filters={"tenant_id": current_user.tenant_id})
+        entities = await self.get_by_tenant(current_user.tenant_id)
 
         return [
             CustomerViewModel(
@@ -70,10 +74,13 @@ class CustomerService(TenantAwareService[CustomerRepository, Customer]):
             for entity in entities
         ]
 
-    async def get_by_id(self, id: int) -> Optional[CustomerViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[CustomerViewModel]:
         entity = await self._repository.get_by_id(id)
 
         if entity is None:
+            return None
+        
+        if current_user and entity.tenant_id != current_user.tenant_id:
             return None
 
         return CustomerViewModel(
@@ -91,15 +98,16 @@ class CustomerService(TenantAwareService[CustomerRepository, Customer]):
         )
 
     async def create(self, data: CustomerCreate, current_user: CurrentUser) -> Tuple[int, str]:
-        existing = await self._repository.exists_by_fields({
-            "tenant_id": current_user.tenant_id,
-            "customer_name": data.customer_name
-        })
+        existing = await self.get_one_by_tenant(
+            current_user.tenant_id,
+            filters={"customer_name": data.customer_name}
+        )
 
         if existing:
             return 0, f"客户名称 {data.customer_name} 已存在"
 
-        entity = await self._repository.create(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id,
             customer_name=data.customer_name,
             city=data.city,
             address=data.address,
@@ -109,8 +117,7 @@ class CustomerService(TenantAwareService[CustomerRepository, Customer]):
             creator=current_user.user_name,
             create_time=int(datetime.now().timestamp()),
             last_update_time=int(datetime.now().timestamp()),
-            is_valid=True,
-            tenant_id=current_user.tenant_id
+            is_valid=True
         )
 
         if entity.id > 0:
@@ -118,22 +125,26 @@ class CustomerService(TenantAwareService[CustomerRepository, Customer]):
         else:
             return 0, "保存失败"
 
-    async def update(self, data: CustomerUpdate) -> Tuple[bool, str]:
+    async def update(self, data: CustomerUpdate, current_user: CurrentUser) -> Tuple[bool, str]:
         entity = await self._repository.get_by_id(data.id)
 
         if entity is None:
             return False, "记录不存在"
+        
+        if current_user and entity.tenant_id != current_user.tenant_id:
+            return False, "无权修改此记录"
 
-        existing = await self._repository.exists_by_fields({
-            "tenant_id": entity.tenant_id,
-            "customer_name": data.customer_name
-        }, exclude_id=data.id)
+        existing = await self.get_one_by_tenant(
+            entity.tenant_id,
+            filters={"customer_name": data.customer_name}
+        )
 
-        if existing:
+        if existing and existing.id != data.id:
             return False, f"客户名称 {data.customer_name} 已存在"
 
-        await self._repository.update(
+        await self.update_with_tenant(
             data.id,
+            entity.tenant_id,
             customer_name=data.customer_name,
             city=data.city,
             address=data.address,
@@ -145,7 +156,15 @@ class CustomerService(TenantAwareService[CustomerRepository, Customer]):
 
         return True, "保存成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
+    async def delete(self, id: int, current_user: Optional[CurrentUser] = None) -> Tuple[bool, str]:
+        entity = await self._repository.get_by_id(id)
+        
+        if entity is None:
+            return False, "记录不存在"
+        
+        if current_user and entity.tenant_id != current_user.tenant_id:
+            return False, "无权删除此记录"
+        
         query = select(OutboundOrder).where(OutboundOrder.customer_id == id)
         result = await self._db_session.execute(query)
         existing = result.scalar_one_or_none()

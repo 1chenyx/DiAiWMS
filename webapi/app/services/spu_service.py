@@ -102,7 +102,7 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
         Returns:
             SPU视图模型列表
         """
-        spus = await self._repository.get_by_tenant(current_user.tenant_id)
+        spus = await self.get_by_tenant(current_user.tenant_id)
         
         return [
             SpuViewModel(
@@ -127,12 +127,13 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
             for spu in spus
         ]
 
-    async def get_by_id(self, id: int) -> Optional[SpuViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[SpuViewModel]:
         """
         根据ID获取SPU
         
         Args:
             id: SPU ID
+            current_user: 当前登录用户
             
         Returns:
             SPU视图模型，不存在则返回None
@@ -140,6 +141,9 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
         spu = await self._repository.get_by_id(id)
         
         if spu is None:
+            return None
+        
+        if current_user and spu.tenant_id != current_user.tenant_id:
             return None
         
         return SpuViewModel(
@@ -173,9 +177,9 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
         Returns:
             (SPU ID, 消息)
         """
-        existing = await self._repository.exists_by_code_and_tenant(
-            view_model.spu_code,
-            current_user.tenant_id
+        existing = await self.get_one_by_tenant(
+            current_user.tenant_id,
+            filters={"spu_code": view_model.spu_code}
         )
         
         if existing:
@@ -190,7 +194,8 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
             if supplier:
                 supplier_name = supplier.supplier_name
         
-        spu = await self._repository.create(
+        spu = await self.create_with_tenant(
+            current_user.tenant_id,
             spu_code=view_model.spu_code,
             spu_name=view_model.spu_name,
             category_id=view_model.category_id,
@@ -205,13 +210,13 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
             creator=current_user.user_name,
             create_time=int(datetime.now().timestamp()),
             last_update_time=int(datetime.now().timestamp()),
-            is_valid=view_model.is_valid,
-            tenant_id=current_user.tenant_id
+            is_valid=view_model.is_valid
         )
         
         if view_model.skus:
             for sku_data in view_model.skus:
                 sku = Sku(
+                    tenant_id=current_user.tenant_id,
                     spu_id=spu.id,
                     sku_code=sku_data.sku_code,
                     sku_name=sku_data.sku_name,
@@ -251,13 +256,12 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
             return False, "记录不存在"
         
         if view_model.spu_code is not None:
-            existing = await self._repository.exists_by_code_and_tenant(
-                view_model.spu_code,
+            existing = await self.get_one_by_tenant(
                 spu.tenant_id,
-                exclude_id=id
+                filters={"spu_code": view_model.spu_code}
             )
             
-            if existing:
+            if existing and existing.id != id:
                 return False, f"SPU编码 '{view_model.spu_code}' 已存在"
         
         update_data = {}
@@ -299,9 +303,11 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
         if view_model.skus:
             for sku_data in view_model.skus:
                 if sku_data.id:
-                    query = select(Sku).where(Sku.id == sku_data.id)
-                    result = await self._db_session.execute(query)
-                    sku = result.scalar_one_or_none()
+                    sku = await self.get_one_entity_by_tenant(
+                        Sku,
+                        spu.tenant_id,
+                        filters={"id": sku_data.id}
+                    )
                     
                     if sku:
                         if sku_data.sku_code is not None:
@@ -330,6 +336,7 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
                         sku.last_update_time = int(datetime.now().timestamp())
                 else:
                     sku = Sku(
+                        tenant_id=current_user.tenant_id,
                         spu_id=spu.id,
                         sku_code=sku_data.sku_code,
                         sku_name=sku_data.sku_name,
@@ -351,9 +358,11 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
         
         if view_model.delete_sku_ids:
             for sku_id in view_model.delete_sku_ids:
-                query = select(Sku).where(Sku.id == sku_id)
-                result = await self._db_session.execute(query)
-                sku = result.scalar_one_or_none()
+                sku = await self.get_one_entity_by_tenant(
+                    Sku,
+                    spu.tenant_id,
+                    filters={"id": sku_id}
+                )
                 
                 if sku and sku.spu_id == spu.id:
                     await self._db_session.delete(sku)
@@ -362,16 +371,25 @@ class SpuService(TenantAwareService[SpuRepository, Spu]):
         
         return True, "保存成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
+    async def delete(self, id: int, current_user: Optional[CurrentUser] = None) -> Tuple[bool, str]:
         """
         删除SPU
         
         Args:
             id: SPU ID
+            current_user: 当前登录用户
             
         Returns:
             (是否成功, 消息)
         """
+        spu = await self._repository.get_by_id(id)
+        
+        if spu is None:
+            return False, "记录不存在"
+        
+        if current_user and spu.tenant_id != current_user.tenant_id:
+            return False, "无权删除此记录"
+        
         result = await self._repository.delete(id)
         
         if not result:

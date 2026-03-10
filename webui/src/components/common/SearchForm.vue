@@ -47,7 +47,7 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue'
-import type { SearchFormItem, SelectOption } from '@/types/common'
+import type { SearchFormItem } from '@/types/common'
 
 interface Props {
   items: SearchFormItem[]

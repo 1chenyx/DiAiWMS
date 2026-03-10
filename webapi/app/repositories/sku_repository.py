@@ -48,9 +48,7 @@ class SkuRepository(BaseRepository[Sku]):
         Returns:
             SKU实例列表
         """
-        query = select(Sku).join(
-            Spu, Sku.spu_id == Spu.id
-        ).where(Spu.tenant_id == tenant_id)
+        query = select(Sku).where(Sku.tenant_id == tenant_id)
         
         if is_valid is not None:
             query = query.where(Sku.is_valid == is_valid)

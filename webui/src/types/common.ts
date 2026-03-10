@@ -14,8 +14,8 @@ export interface PageResult<T> {
 
 export interface BaseEntity {
   id: number
-  create_time?: string
-  update_time?: string
+  create_time?: string | number
+  update_time?: string | number
 }
 
 export interface CreateResult {

@@ -17,10 +17,9 @@
           </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="searchForm.order_status" placeholder="请选择状态" clearable>
-              <el-option label="待处理" :value="1" />
-              <el-option label="处理中" :value="2" />
-              <el-option label="已完成" :value="3" />
-              <el-option label="已取消" :value="4" />
+              <el-option label="待处理" :value="0" />
+              <el-option label="已生成上架单" :value="1" />
+              <el-option label="已取消" :value="2" />
             </el-select>
           </el-form-item>
           <el-form-item>
@@ -46,7 +45,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" />
-        <el-table-column prop="create_time" label="创建时间" />
+        <el-table-column prop="create_time" label="创建时间">
+          <template #default="scope">
+            {{ formatTimestamp(scope.row.create_time) }}
+          </template>
+        </el-table-column>
         <el-table-column label="操作" fixed="right" width="200">
           <template #default="scope">
             <el-button type="primary" size="small" @click="handleViewDetail(scope.row)">
@@ -129,6 +132,23 @@
               <el-input-number v-model="scope.row.volume" :min="0" :precision="2" size="small" style="width: 100%" />
             </template>
           </el-table-column>
+          <el-table-column prop="batch_no" label="批次号" width="150">
+            <template #default="scope">
+              <el-input v-model="scope.row.batch_no" placeholder="请输入批次号" size="small" style="width: 100%" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="production_date" label="生产日期" width="150">
+            <template #default="scope">
+              <el-date-picker 
+                v-model="scope.row.production_date" 
+                type="date" 
+                placeholder="请选择生产日期" 
+                size="small" 
+                style="width: 100%" 
+                value-format="X"
+              />
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="80">
             <template #default="scope">
               <el-button type="danger" size="small" @click="removeItem(scope.$index)">删除</el-button>
@@ -190,7 +210,7 @@
           <el-descriptions-item label="总重量">{{ selectedOrder.total_weight }}</el-descriptions-item>
           <el-descriptions-item label="总体积">{{ selectedOrder.total_volume }}</el-descriptions-item>
           <el-descriptions-item label="备注">{{ selectedOrder.remark }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间" :span="2">{{ selectedOrder.create_time }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间" :span="2">{{ formatTimestamp(selectedOrder.create_time) }}</el-descriptions-item>
         </el-descriptions>
         <div v-if="selectedOrder.items && selectedOrder.items.length > 0">
           <h4>商品明细</h4>
@@ -201,6 +221,12 @@
             <el-table-column prop="qty" label="数量" />
             <el-table-column prop="weight" label="重量" />
             <el-table-column prop="volume" label="体积" />
+            <el-table-column prop="batch_no" label="批次号" />
+            <el-table-column prop="production_date" label="生产日期">
+              <template #default="scope">
+                {{ scope.row.production_date ? formatTimestamp(scope.row.production_date) : '-' }}
+              </template>
+            </el-table-column>
           </el-table>
         </div>
       </div>
@@ -218,10 +244,11 @@ import { ref, reactive, onMounted } from 'vue'
 import { Plus, View, Delete } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { inboundOrderService, type InboundOrderViewModel, type InboundOrderCreate, type InboundOrderItem } from '@/services/inboundOrderService'
+import { inboundOrderService, type InboundOrderViewModel, type InboundOrderItem } from '@/services/inboundOrderService'
 import { supplierService, type Supplier } from '@/services/supplierService'
 import { warehouseLocationService, type WarehouseLocation } from '@/services/warehouseLocationService'
 import { skuService, type Sku } from '@/services/skuService'
+import { formatTimestamp } from '@/utils/format'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -283,7 +310,7 @@ const fetchOrderList = async () => {
       order_no: searchForm.order_no || undefined,
       order_status: searchForm.order_status
     })
-    orderList.value = result.rows
+    orderList.value = result.rows || []
     pagination.total = result.totals
   } catch (error: any) {
     ElMessage.error(error.message || '获取入库订单列表失败')
@@ -303,7 +330,7 @@ const fetchSuppliers = async () => {
 
 const fetchWarehouses = async () => {
   try {
-    const result = await warehouseLocationService.getList(1)
+    const result = await warehouseLocationService.getAll(1)
     warehouseList.value = result
   } catch (error: any) {
     console.error('获取仓库列表失败:', error)
@@ -359,7 +386,7 @@ const searchSku = async () => {
       sku_code: skuSearchForm.keyword || undefined,
       sku_name: skuSearchForm.keyword || undefined
     })
-    skuList.value = result.data
+    skuList.value = result.data || []
     skuPagination.total = result.totals
   } catch (error: any) {
     ElMessage.error(error.message || '获取SKU列表失败')
@@ -379,23 +406,22 @@ const confirmSkuSelection = () => {
   }
   
   selectedSkus.value.forEach(sku => {
-    const exists = formData.items.find(item => item.sku_id === sku.id)
-    if (!exists) {
-      formData.items.push({
-        spu_id: sku.spu_id,
-        sku_id: sku.id,
-        qty: 1,
-        weight: sku.weight,
-        volume: sku.volume,
-        sku_code: sku.sku_code,
-        sku_name: sku.sku_name,
-        spu_name: sku.spu_name
-      })
-    }
+    formData.items.push({
+      spu_id: sku.spu_id,
+      sku_id: sku.id,
+      qty: 1,
+      weight: sku.weight,
+      volume: sku.volume,
+      batch_no: '',
+      production_date: undefined,
+      sku_code: sku.sku_code,
+      sku_name: sku.sku_name,
+      spu_name: sku.spu_name
+    })
   })
   
   skuDialogVisible.value = false
-  ElMessage.success(`已添加 ${selectedSkus.value.length} 个商品`)
+  ElMessage.success(`已添加 ${selectedSkus.value.length} 个商品明细（同一SKU可添加多个批次）`)
 }
 
 const removeItem = (index: number) => {
@@ -419,7 +445,9 @@ const handleSubmit = async () => {
       sku_id: item.sku_id,
       qty: item.qty,
       weight: item.weight,
-      volume: item.volume
+      volume: item.volume,
+      batch_no: item.batch_no || '',
+      production_date: item.production_date || 0
     }))
     
     await inboundOrderService.create({
@@ -469,20 +497,18 @@ const handleDelete = async (id: number) => {
 
 const getStatusType = (status: number) => {
   switch (status) {
-    case 1: return 'info'
-    case 2: return 'warning'
-    case 3: return 'success'
-    case 4: return 'danger'
+    case 0: return 'info'
+    case 1: return 'warning'
+    case 2: return 'danger'
     default: return ''
   }
 }
 
 const getStatusText = (status: number) => {
   switch (status) {
-    case 1: return '待处理'
-    case 2: return '处理中'
-    case 3: return '已完成'
-    case 4: return '已取消'
+    case 0: return '待处理'
+    case 1: return '已生成上架单'
+    case 2: return '已取消'
     default: return ''
   }
 }

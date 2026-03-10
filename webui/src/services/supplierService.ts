@@ -6,10 +6,12 @@ import { PaginationHelper } from '@/utils/pagination'
 export interface Supplier extends BaseEntity {
   id: number
   supplier_name: string
-  supplier_code: string
+  supplier_code?: string
+  contact_person: string
   contact?: string
   phone?: string
   email?: string
+  contact_tel: string
   address?: string
   description?: string
   is_valid: boolean
@@ -17,22 +19,25 @@ export interface Supplier extends BaseEntity {
 
 export interface SupplierCreate {
   supplier_name: string
-  supplier_code: string
+  supplier_code?: string
+  contact_person: string
   contact?: string
   phone?: string
   email?: string
+  contact_tel: string
   address?: string
   description?: string
-  is_valid?: boolean
 }
 
 export interface SupplierUpdate {
   id: number
   supplier_name?: string
   supplier_code?: string
+  contact_person?: string
   contact?: string
   phone?: string
   email?: string
+  contact_tel?: string
   address?: string
   description?: string
   is_valid?: boolean

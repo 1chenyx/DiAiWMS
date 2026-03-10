@@ -20,9 +20,9 @@
           </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="searchForm.receipt_status" placeholder="请选择状态" clearable>
-              <el-option label="待入库" :value="1" />
-              <el-option label="已入库" :value="2" />
-              <el-option label="已取消" :value="3" />
+              <el-option label="待入库" :value="0" />
+              <el-option label="已入库" :value="1" />
+              <el-option label="已取消" :value="2" />
             </el-select>
           </el-form-item>
           <el-form-item>
@@ -48,14 +48,22 @@
           </template>
         </el-table-column>
         <el-table-column prop="inbound_person" label="入库人" />
-        <el-table-column prop="inbound_time" label="入库时间" />
-        <el-table-column prop="create_time" label="创建时间" />
+        <el-table-column prop="inbound_time" label="入库时间">
+          <template #default="scope">
+            {{ formatTimestamp(scope.row.inbound_time) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="create_time" label="创建时间">
+          <template #default="scope">
+            {{ formatTimestamp(scope.row.create_time) }}
+          </template>
+        </el-table-column>
         <el-table-column label="操作" fixed="right" width="280">
           <template #default="scope">
             <el-button type="primary" size="small" @click="handleViewDetail(scope.row)">
               <el-icon><View /></el-icon> 详情
             </el-button>
-            <el-button v-if="scope.row.receipt_status === 1" type="success" size="small" @click="handleCompleteInbound(scope.row)">
+            <el-button v-if="scope.row.receipt_status === 0" type="success" size="small" @click="handleCompleteInbound(scope.row)">
               <el-icon><Check /></el-icon> 完成入库
             </el-button>
             <el-button type="danger" size="small" @click="handleDelete(scope.row.id)">
@@ -110,8 +118,8 @@
           <el-descriptions-item label="仓库">{{ selectedReceipt.warehouse_name }}</el-descriptions-item>
           <el-descriptions-item label="总数量">{{ selectedReceipt.total_qty }}</el-descriptions-item>
           <el-descriptions-item label="入库人">{{ selectedReceipt.inbound_person }}</el-descriptions-item>
-          <el-descriptions-item label="入库时间">{{ selectedReceipt.inbound_time }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ selectedReceipt.create_time }}</el-descriptions-item>
+          <el-descriptions-item label="入库时间">{{ formatTimestamp(selectedReceipt.inbound_time) }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ formatTimestamp(selectedReceipt.create_time) }}</el-descriptions-item>
         </el-descriptions>
         
         <div v-if="selectedReceipt.items && selectedReceipt.items.length > 0">
@@ -121,6 +129,12 @@
             <el-table-column prop="sku_name" label="SKU名称" />
             <el-table-column prop="spu_name" label="SPU名称" />
             <el-table-column prop="qty" label="数量" />
+            <el-table-column prop="batch_no" label="批次号" />
+            <el-table-column prop="production_date" label="生产日期">
+              <template #default="scope">
+                {{ scope.row.production_date ? formatTimestamp(scope.row.production_date) : '-' }}
+              </template>
+            </el-table-column>
             <el-table-column prop="location_name" label="库位" />
           </el-table>
         </div>
@@ -139,9 +153,10 @@ import { ref, reactive, onMounted } from 'vue'
 import { Plus, View, Delete, Check } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { inboundReceiptService, type InboundReceiptViewModel, type InboundReceiptCreate } from '@/services/inboundReceiptService'
+import { inboundReceiptService, type InboundReceiptViewModel } from '@/services/inboundReceiptService'
 import { inboundPickPutawayService, type InboundPickPutawayViewModel } from '@/services/inboundPickPutawayService'
 import { useUserStore } from '@/store/user'
+import { formatTimestamp } from '@/utils/format'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -185,7 +200,7 @@ const fetchReceiptList = async () => {
       order_no: searchForm.order_no || undefined,
       receipt_status: searchForm.receipt_status
     })
-    receiptList.value = result.rows
+    receiptList.value = result.rows || []
     pagination.total = result.totals
   } catch (error: any) {
     ElMessage.error(error.message || '获取入库单列表失败')
@@ -199,9 +214,9 @@ const fetchPickPutawayList = async () => {
     const result = await inboundPickPutawayService.getPage({
       page_index: 1,
       page_size: 1000,
-      pick_putaway_status: 3
+      pick_putaway_status: 2
     })
-    pickPutawayList.value = result.rows
+    pickPutawayList.value = result.rows || []
   } catch (error: any) {
     console.error('获取拣货上架单列表失败:', error)
   }
@@ -243,7 +258,8 @@ const handleSubmit = async () => {
     submitting.value = true
     
     await inboundReceiptService.create({
-      inbound_pick_putaway_id: formData.inbound_pick_putaway_id!
+      inbound_pick_putaway_id: formData.inbound_pick_putaway_id!,
+      inbound_person: userStore.userInfo?.user_name || '系统用户'
     })
     
     ElMessage.success('创建成功')
@@ -276,7 +292,7 @@ const handleCompleteInbound = async (row: InboundReceiptViewModel) => {
     
     await inboundReceiptService.completeInbound(
       row.id,
-      userStore.userInfo?.username || '系统用户'
+      userStore.userInfo?.user_name || '系统用户'
     )
     
     ElMessage.success('完成入库成功')
@@ -308,18 +324,18 @@ const handleDelete = async (id: number) => {
 
 const getStatusType = (status: number) => {
   switch (status) {
-    case 1: return 'info'
-    case 2: return 'success'
-    case 3: return 'danger'
+    case 0: return 'info'
+    case 1: return 'success'
+    case 2: return 'danger'
     default: return ''
   }
 }
 
 const getStatusText = (status: number) => {
   switch (status) {
-    case 1: return '待入库'
-    case 2: return '已入库'
-    case 3: return '已取消'
+    case 0: return '待入库'
+    case 1: return '已入库'
+    case 2: return '已取消'
     default: return ''
   }
 }

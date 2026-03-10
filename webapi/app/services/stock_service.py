@@ -80,7 +80,15 @@ class StockService(TenantAwareService[StockRepository, Stock]):
                 series_number=stock.series_number,
                 expiry_date=int(stock.expiry_date),
                 price=float(stock.price),
-                putaway_date=int(stock.putaway_date)
+                putaway_date=int(stock.putaway_date),
+                warehouse_id=stock.warehouse_id,
+                warehouse_name=stock.warehouse_name,
+                warehouse_area_id=stock.warehouse_area_id,
+                warehouse_area_name=stock.warehouse_area_name,
+                warehouse_location_name=stock.warehouse_location_name,
+                spu_name=stock.spu_name,
+                sku_code=stock.sku_code,
+                sku_name=stock.sku_name
             )
             for stock, goods_location, sku, spu in rows
         ]
@@ -97,7 +105,7 @@ class StockService(TenantAwareService[StockRepository, Stock]):
         Returns:
             库存列表
         """
-        stocks = await self._repository.get_by_tenant(current_user.tenant_id)
+        stocks = await self.get_by_tenant(current_user.tenant_id)
         
         return [
             StockViewModel(
@@ -112,17 +120,26 @@ class StockService(TenantAwareService[StockRepository, Stock]):
                 series_number=stock.series_number,
                 expiry_date=int(stock.expiry_date),
                 price=float(stock.price),
-                putaway_date=int(stock.putaway_date)
+                putaway_date=int(stock.putaway_date),
+                warehouse_id=stock.warehouse_id,
+                warehouse_name=stock.warehouse_name,
+                warehouse_area_id=stock.warehouse_area_id,
+                warehouse_area_name=stock.warehouse_area_name,
+                warehouse_location_name=stock.warehouse_location_name,
+                spu_name=stock.spu_name,
+                sku_code=stock.sku_code,
+                sku_name=stock.sku_name
             )
             for stock in stocks
         ]
 
-    async def get_by_id(self, id: int) -> Optional[StockViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[StockViewModel]:
         """
         根据ID获取库存信息
         
         Args:
             id: 库存ID
+            current_user: 当前登录用户
             
         Returns:
             库存视图模型,不存在则返回None
@@ -130,6 +147,9 @@ class StockService(TenantAwareService[StockRepository, Stock]):
         stock = await self._repository.get_by_id(id)
         
         if stock is None:
+            return None
+        
+        if current_user and stock.tenant_id != current_user.tenant_id:
             return None
         
         return StockViewModel(
@@ -144,7 +164,15 @@ class StockService(TenantAwareService[StockRepository, Stock]):
             series_number=stock.series_number,
             expiry_date=int(stock.expiry_date),
             price=float(stock.price),
-            putaway_date=int(stock.putaway_date)
+            putaway_date=int(stock.putaway_date),
+            warehouse_id=stock.warehouse_id,
+            warehouse_name=stock.warehouse_name,
+            warehouse_area_id=stock.warehouse_area_id,
+            warehouse_area_name=stock.warehouse_area_name,
+            warehouse_location_name=stock.warehouse_location_name,
+            spu_name=stock.spu_name,
+            sku_code=stock.sku_code,
+            sku_name=stock.sku_name
         )
 
     async def add(self, view_model: StockCreateViewModel, current_user: CurrentUser) -> Tuple[int, str]:
@@ -158,7 +186,8 @@ class StockService(TenantAwareService[StockRepository, Stock]):
         Returns:
             库存ID和操作结果消息
         """
-        stock = await self._repository.create(
+        stock = await self.create_with_tenant(
+            current_user.tenant_id,
             sku_id=view_model.sku_id,
             goods_location_id=view_model.goods_location_id,
             qty=view_model.qty,
@@ -168,8 +197,7 @@ class StockService(TenantAwareService[StockRepository, Stock]):
             expiry_date=datetime.fromtimestamp(view_model.expiry_date) if view_model.expiry_date else datetime(1900, 1, 1),
             price=view_model.price,
             putaway_date=datetime.fromtimestamp(view_model.putaway_date) if view_model.putaway_date else datetime.now(),
-            last_update_time=int(datetime.now().timestamp()),
-            tenant_id=current_user.tenant_id
+            last_update_time=int(datetime.now().timestamp())
         )
         
         return stock.id, "保存成功"
@@ -214,7 +242,7 @@ class StockService(TenantAwareService[StockRepository, Stock]):
         update_data["last_update_time"] = int(datetime.now().timestamp())
         
         if update_data:
-            await self._repository.update(id, **update_data)
+            await self.update_with_tenant(id, stock.tenant_id, **update_data)
         
         return True, "保存成功"
 

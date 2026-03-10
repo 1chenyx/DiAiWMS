@@ -14,6 +14,7 @@ from app.utils.jwt_util import verify_jwt
 from app.core.database import get_master_db, get_tenant_db
 from app.core.current_user import CurrentUser
 from app.utils.cache_manager import CacheManager
+from app.core.tenant_database import tenant_db_pool
 
 
 # -------------------- jwt --------------------
@@ -141,7 +142,7 @@ async def get_current_user(
 ) -> CurrentUser:
     """获取当前用户，用于认证 access token（从 Authorization header）"""
     if not credentials or not credentials.jwt_user or not credentials.jwt_user.user_id:
-        return CurrentUser()
+        raise CustomException(status=Status.UNAUTHORIZED_ERROR, error="认证失败：无效的访问令牌")
     jwt_user = credentials.jwt_user
     return CurrentUser(
         user_id=jwt_user.user_id,
@@ -159,7 +160,7 @@ async def get_current_user_from_refresh_token(
 ) -> JWTUser:
     """获取当前用户，用于认证 refresh token（从 Cookie）"""
     if not jwt_user or not jwt_user.user_id:
-        return CurrentUser()
+        raise CustomException(status=Status.UNAUTHORIZED_ERROR, error="认证失败：无效的刷新令牌")
     return CurrentUser(
         user_id=jwt_user.user_id,
         user_num=jwt_user.user_num,
@@ -202,11 +203,17 @@ async def get_db_by_tenant(
         租户数据库异步会话对象
     """
     if not current_user.tenant_id or not current_user.is_authenticated:
-        for session in get_master_db():
+        session = tenant_db_pool.get_master_session()
+        try:
             yield session
-            return
-    async for session in get_tenant_db(current_user.tenant_id, use_slave=False):
-        yield session
+        finally:
+            session.close()
+    else:
+        session = await tenant_db_pool.get_tenant_session(current_user.tenant_id, use_slave=False)
+        try:
+            yield session
+        finally:
+            await session.close()
 
 
 async def get_db_by_tenant_read(
@@ -222,11 +229,17 @@ async def get_db_by_tenant_read(
         租户数据库异步会话对象
     """
     if not current_user.tenant_id or not current_user.is_authenticated:
-        for session in get_master_db():
+        session = tenant_db_pool.get_master_session()
+        try:
             yield session
-            return
-    async for session in get_tenant_db(current_user.tenant_id, use_slave=True):
-        yield session
+        finally:
+            session.close()
+    else:
+        session = await tenant_db_pool.get_tenant_session(current_user.tenant_id, use_slave=True)
+        try:
+            yield session
+        finally:
+            await session.close()
 
 
 async def get_master_db_session() -> AsyncSession:

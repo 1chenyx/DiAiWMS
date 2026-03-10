@@ -4,18 +4,17 @@ import type { BaseEntity, PageParams, PageResult } from '@/types/common'
 import { PaginationHelper } from '@/utils/pagination'
 
 export interface InboundPickPutawayItem {
-  inbound_order_item_id: number
-  spu_id: number
   sku_id: number
   qty: number
-  picked_qty: number
-  putaway_qty: number
-  location_id?: number
-  location_name?: string
+  goods_location_id: number
+  batch_no?: string
+  production_date?: number
+  remark?: string
 }
 
 export interface InboundPickPutawayCreate {
-  inbound_order_id: number
+  inbound_order_ids?: number[]
+  remark?: string
 }
 
 export interface InboundPickPutawayUpdate {
@@ -25,43 +24,58 @@ export interface InboundPickPutawayUpdate {
 
 export interface InboundPickPutawayItemUpdate {
   id: number
-  picked_qty?: number
-  putaway_qty?: number
-  location_id?: number
+  putaway_qty: number
+  goods_location_id: number
+  warehouse_id?: number
+  warehouse_area_id?: number
+  putaway_person_id: number
+  putaway_person: string
+  putaway_time: number
+  batch_no?: string
+  production_date?: number
 }
 
 export interface InboundPickPutawayItemViewModel {
   id: number
   inbound_pick_putaway_id: number
-  inbound_order_item_id: number
-  spu_id: number
   sku_id: number
-  spu_name: string
-  sku_name: string
   sku_code: string
+  sku_name: string
   qty: number
-  picked_qty: number
   putaway_qty: number
-  location_id?: number
-  location_name?: string
+  goods_location_id: number
+  goods_location_code: string
+  warehouse_id?: number
+  warehouse_name?: string
+  warehouse_area_id?: number
+  warehouse_area_name?: string
+  batch_no?: string
+  production_date?: number
+  remark?: string
 }
 
 export interface InboundPickPutawayViewModel extends BaseEntity {
   id: number
   pick_putaway_no: string
-  inbound_order_id: number
+  order_id: number
   order_no: string
-  supplier_id: number
-  supplier_name: string
-  warehouse_id: number
-  warehouse_name: string
   pick_putaway_status: number
   total_qty: number
-  total_picked_qty: number
-  total_putaway_qty: number
+  putaway_qty?: number
+  total_putaway_qty?: number
+  supplier_id?: number
+  supplier_name?: string
+  warehouse_id?: number
+  warehouse_name?: string
+  goods_owner_id?: number
+  goods_owner_name?: string
+  total_weight?: number
+  total_volume?: number
   putaway_person_id?: number
   putaway_person?: string
   putaway_time?: string
+  putaway_start_time?: number
+  putaway_end_time?: number
   remark?: string
   items?: InboundPickPutawayItemViewModel[]
 }

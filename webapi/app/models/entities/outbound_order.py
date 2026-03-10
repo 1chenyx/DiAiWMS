@@ -17,6 +17,7 @@ class OutboundOrder(WMSBaseModel):
     customer_id = Column(Integer, nullable=False, default=0, comment='客户ID')
     customer_name = Column(String(128), nullable=False, default='', comment='客户名称')
     warehouse_id = Column(Integer, nullable=False, default=0, comment='仓库ID')
+    warehouse_name = Column(String(128), nullable=False, default='', comment='仓库名称')
     goods_owner_id = Column(Integer, nullable=False, default=0, comment='货主ID')
     goods_owner_name = Column(String(128), nullable=False, default='', comment='货主名称')
     total_qty = Column(Integer, nullable=False, default=0, comment='总数量')

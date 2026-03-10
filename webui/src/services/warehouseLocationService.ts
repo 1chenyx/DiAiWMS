@@ -5,31 +5,34 @@ import { PaginationHelper } from '@/utils/pagination'
 
 export interface WarehouseLocation extends BaseEntity {
   id: number
-  node_type: number
   parent_id: number
+  node_type: number
   node_name: string
-  city: string
-  address: string
-  email: string
-  manager: string
-  contact_tel: string
-  area_property: number
-  location_length: number
-  location_width: number
-  location_height: number
-  location_volume: number
-  location_load: number
-  roadway_number: string
-  shelf_number: string
-  layer_number: string
-  tag_number: string
+  node_code: string
   is_valid: boolean
+  creator?: string
+  city?: string
+  address?: string
+  email?: string
+  manager?: string
+  contact_tel?: string
+  area_property?: number
+  location_length?: number
+  location_width?: number
+  location_height?: number
+  location_volume?: number
+  location_load?: number
+  roadway_number?: string
+  shelf_number?: string
+  layer_number?: string
+  tag_number?: string
 }
 
 export interface WarehouseLocationCreate {
-  node_type: number
   parent_id: number
+  node_type: number
   node_name: string
+  node_code: string
   city?: string
   address?: string
   email?: string
@@ -50,7 +53,10 @@ export interface WarehouseLocationCreate {
 
 export interface WarehouseLocationUpdate {
   id: number
+  parent_id?: number
+  node_type?: number
   node_name?: string
+  node_code?: string
   city?: string
   address?: string
   email?: string
@@ -69,19 +75,21 @@ export interface WarehouseLocationUpdate {
   is_valid?: boolean
 }
 
-export interface WarehouseLocationTreeNode {
-  id: number
-  node_type: number
-  node_name: string
-  parent_id: number
-  children: WarehouseLocationTreeNode[]
-}
-
 export interface WarehouseLocationPageParams extends PageParams {
   node_name?: string
   node_type?: number
   parent_id?: number
   is_valid?: boolean
+}
+
+export interface WarehouseLocationTreeNode {
+  id: number
+  parent_id: number
+  node_type: number
+  node_name: string
+  node_code: string
+  is_valid: boolean
+  children?: WarehouseLocationTreeNode[]
 }
 
 class WarehouseLocationService extends BaseService<WarehouseLocation, WarehouseLocationCreate, WarehouseLocationUpdate> {
@@ -102,31 +110,21 @@ class WarehouseLocationService extends BaseService<WarehouseLocation, WarehouseL
     return http.get('/warehouselocation/tree')
   }
 
+  getTreeByWarehouse(warehouseId: number): Promise<WarehouseLocationTreeNode> {
+    return http.get('/warehouselocation/tree-by-warehouse', { params: { warehouse_id: warehouseId } })
+  }
+
   getChildren(parentId: number, nodeType?: number): Promise<WarehouseLocation[]> {
-    return http.get('/warehouselocation/children', { 
-      params: { 
-        parent_id: parentId,
-        ...(nodeType !== undefined && { node_type: nodeType })
-      } 
+    return http.get('/warehouselocation/children', {
+      params: { parent_id: parentId, node_type: nodeType }
     })
   }
 
-  getList(nodeType?: number, parentId?: number): Promise<WarehouseLocation[]> {
-    return http.get('/warehouselocation/list', { 
-      params: { 
-        ...(nodeType !== undefined && { node_type: nodeType }),
-        ...(parentId !== undefined && { parent_id: parentId })
-      } 
-    })
-  }
-
-  getSelectItems(nodeType: number, parentId: number): Promise<Array<{ id: number; node_name: string }>> {
-    return http.get('/warehouselocation/select-items', { 
-      params: { 
-        node_type: nodeType,
-        parent_id: parentId
-      } 
-    })
+  getAll(nodeType?: number, parentId?: number): Promise<WarehouseLocation[]> {
+    const params: any = {}
+    if (nodeType !== undefined) params.node_type = nodeType
+    if (parentId !== undefined) params.parent_id = parentId
+    return http.get('/warehouselocation/list', { params })
   }
 }
 

@@ -5,16 +5,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.entities import GoodsLocation, WarehouseArea, Warehouse, Stock
 from app.schemas.goods_location import GoodsLocationViewModel, GoodsLocationCreateViewModel, GoodsLocationUpdateViewModel
 from app.core.current_user import CurrentUser
+from app.repositories.goods_location_repository import GoodsLocationRepository
+from app.services.base_service import TenantAwareService
 
 
-class GoodsLocationService:
+class GoodsLocationService(TenantAwareService[GoodsLocationRepository, GoodsLocation]):
     """
     货位服务类
     
     提供货位相关的业务逻辑处理,包括货位查询、创建、更新、删除等操作
     """
     def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+        repository = GoodsLocationRepository(db_session)
+        super().__init__(repository)
+        self._db_session = db_session
 
     async def get_goodslocation_by_warehouse_area_id(self, warehouse_area_id: int, current_user: CurrentUser) -> List[dict]:
         """
@@ -27,13 +31,11 @@ class GoodsLocationService:
         Returns:
             货位字典列表
         """
-        query = select(GoodsLocation).where(
-            GoodsLocation.is_valid == True,
-            GoodsLocation.tenant_id == current_user.tenant_id,
-            GoodsLocation.warehouse_area_id == warehouse_area_id
-        )
-        result = await self.db_session.execute(query)
-        goods_locations = result.scalars().all()
+        filters = {
+            "is_valid": True,
+            "warehouse_area_id": warehouse_area_id
+        }
+        goods_locations = await self.query_by_tenant(current_user.tenant_id, filters=filters)
         
         return [
             {
@@ -64,27 +66,23 @@ class GoodsLocationService:
         Returns:
             货位列表和总数量
         """
-        query = select(GoodsLocation).where(GoodsLocation.tenant_id == current_user.tenant_id)
-        
+        filters = {}
         if search_params:
             if "location_name" in search_params:
-                query = query.where(GoodsLocation.location_name.like(f"%{search_params['location_name']}%"))
+                filters["location_name"] = f"%{search_params['location_name']}%"
             if "warehouse_id" in search_params:
-                query = query.where(GoodsLocation.warehouse_id == search_params["warehouse_id"])
+                filters["warehouse_id"] = search_params["warehouse_id"]
             if "warehouse_area_id" in search_params:
-                query = query.where(GoodsLocation.warehouse_area_id == search_params["warehouse_area_id"])
+                filters["warehouse_area_id"] = search_params["warehouse_area_id"]
             if "is_valid" in search_params:
-                query = query.where(GoodsLocation.is_valid == search_params["is_valid"])
+                filters["is_valid"] = search_params["is_valid"]
         
-        total_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db_session.execute(total_query)
-        totals = total_result.scalar()
-        
-        query = query.order_by(GoodsLocation.create_time.desc())
-        query = query.offset((page_index - 1) * page_size).limit(page_size)
-        
-        result = await self.db_session.execute(query)
-        goods_locations = result.scalars().all()
+        goods_locations, totals = await self.page_query_by_tenant(
+            page_index=page_index,
+            page_size=page_size,
+            tenant_id=current_user.tenant_id,
+            filters=filters
+        )
         
         data = [
             GoodsLocationViewModel(
@@ -115,9 +113,7 @@ class GoodsLocationService:
         return data, totals
 
     async def get_all(self, current_user: CurrentUser) -> List[GoodsLocationViewModel]:
-        query = select(GoodsLocation).where(GoodsLocation.tenant_id == current_user.tenant_id)
-        result = await self.db_session.execute(query)
-        goods_locations = result.scalars().all()
+        goods_locations = await self.query_by_tenant(current_user.tenant_id)
         
         return [
             GoodsLocationViewModel(
@@ -145,12 +141,15 @@ class GoodsLocationService:
             for gl in goods_locations
         ]
 
-    async def get_by_id(self, id: int) -> Optional[GoodsLocationViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[GoodsLocationViewModel]:
         query = select(GoodsLocation).where(GoodsLocation.id == id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         goods_location = result.scalar_one_or_none()
         
         if goods_location is None:
+            return None
+        
+        if current_user and goods_location.tenant_id != current_user.tenant_id:
             return None
         
         return GoodsLocationViewModel(
@@ -177,23 +176,21 @@ class GoodsLocationService:
         )
 
     async def add(self, view_model: GoodsLocationCreateViewModel, current_user: CurrentUser) -> Tuple[int, str]:
-        query = select(GoodsLocation).where(
-            GoodsLocation.location_name == view_model.location_name,
-            GoodsLocation.tenant_id == current_user.tenant_id
+        existing = await self.get_one_by_tenant(
+            current_user.tenant_id,
+            filters={"location_name": view_model.location_name}
         )
-        result = await self.db_session.execute(query)
-        existing = result.scalar_one_or_none()
         
         if existing:
             return 0, f"货位名称 '{view_model.location_name}' 已存在"
         
         wa_query = select(WarehouseArea).where(WarehouseArea.id == view_model.warehouse_area_id)
-        wa_result = await self.db_session.execute(wa_query)
+        wa_result = await self._db_session.execute(wa_query)
         warehouse_area = wa_result.scalar_one_or_none()
         
         if warehouse_area:
             w_query = select(Warehouse).where(Warehouse.id == warehouse_area.warehouse_id)
-            w_result = await self.db_session.execute(w_query)
+            w_result = await self._db_session.execute(w_query)
             warehouse = w_result.scalar_one_or_none()
             
             warehouse_name = warehouse.warehouse_name if warehouse else ""
@@ -204,7 +201,8 @@ class GoodsLocationService:
             warehouse_area_name = ""
             warehouse_area_property = 0
         
-        goods_location = GoodsLocation(
+        goods_location = await self.create_with_tenant(
+            current_user.tenant_id,
             warehouse_id=view_model.warehouse_id,
             warehouse_name=warehouse_name,
             warehouse_area_name=warehouse_area_name,
@@ -222,83 +220,80 @@ class GoodsLocationService:
             create_time=int(datetime.now().timestamp()),
             last_update_time=int(datetime.now().timestamp()),
             is_valid=view_model.is_valid,
-            tenant_id=current_user.tenant_id,
             warehouse_area_id=view_model.warehouse_area_id
         )
-        
-        self.db_session.add(goods_location)
-        await self.db_session.commit()
-        await self.db_session.refresh(goods_location)
         
         return goods_location.id, "保存成功"
 
     async def update(self, id: int, view_model: GoodsLocationUpdateViewModel, current_user: CurrentUser) -> Tuple[bool, str]:
-        query = select(GoodsLocation).where(GoodsLocation.id == id)
-        result = await self.db_session.execute(query)
-        goods_location = result.scalar_one_or_none()
+        goods_location = await self._repository.get_by_id(id)
         
         if goods_location is None:
             return False, "记录不存在"
         
+        if current_user and goods_location.tenant_id != current_user.tenant_id:
+            return False, "无权修改此记录"
+        
         if view_model.location_name is not None:
-            query = select(GoodsLocation).where(
-                GoodsLocation.id != id,
-                GoodsLocation.location_name == view_model.location_name,
-                GoodsLocation.tenant_id == current_user.tenant_id
+            existing = await self.get_one_by_tenant(
+                current_user.tenant_id,
+                filters={"location_name": view_model.location_name}
             )
-            result = await self.db_session.execute(query)
-            existing = result.scalar_one_or_none()
             
-            if existing:
+            if existing and existing.id != id:
                 return False, f"货位名称 '{view_model.location_name}' 已存在"
         
+        update_data = {}
         if view_model.location_name is not None:
-            goods_location.location_name = view_model.location_name
+            update_data["location_name"] = view_model.location_name
         if view_model.location_length is not None:
-            goods_location.location_length = view_model.location_length
+            update_data["location_length"] = view_model.location_length
         if view_model.location_width is not None:
-            goods_location.location_width = view_model.location_width
+            update_data["location_width"] = view_model.location_width
         if view_model.location_heigth is not None:
-            goods_location.location_heigth = view_model.location_heigth
+            update_data["location_heigth"] = view_model.location_heigth
         if view_model.location_volume is not None:
-            goods_location.location_volume = view_model.location_volume
+            update_data["location_volume"] = view_model.location_volume
         if view_model.location_load is not None:
-            goods_location.location_load = view_model.location_load
+            update_data["location_load"] = view_model.location_load
         if view_model.roadway_number is not None:
-            goods_location.roadway_number = view_model.roadway_number
+            update_data["roadway_number"] = view_model.roadway_number
         if view_model.shelf_number is not None:
-            goods_location.shelf_number = view_model.shelf_number
+            update_data["shelf_number"] = view_model.shelf_number
         if view_model.layer_number is not None:
-            goods_location.layer_number = view_model.layer_number
+            update_data["layer_number"] = view_model.layer_number
         if view_model.tag_number is not None:
-            goods_location.tag_number = view_model.tag_number
+            update_data["tag_number"] = view_model.tag_number
         if view_model.warehouse_area_id is not None:
-            goods_location.warehouse_area_id = view_model.warehouse_area_id
+            update_data["warehouse_area_id"] = view_model.warehouse_area_id
         if view_model.is_valid is not None:
-            goods_location.is_valid = view_model.is_valid
+            update_data["is_valid"] = view_model.is_valid
         
-        goods_location.last_update_time = int(datetime.now().timestamp())
+        update_data["last_update_time"] = int(datetime.now().timestamp())
         
-        await self.db_session.commit()
+        await self.update_with_tenant(id, current_user.tenant_id, **update_data)
         
         return True, "保存成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
+    async def delete(self, id: int, current_user: Optional[CurrentUser] = None) -> Tuple[bool, str]:
         query = select(Stock).where(Stock.goods_location_id == id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         existing = result.scalar_one_or_none()
         
         if existing:
             return False, "存在库存，无法删除"
         
         query = select(GoodsLocation).where(GoodsLocation.id == id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         goods_location = result.scalar_one_or_none()
         
         if goods_location is None:
             return False, "记录不存在"
         
-        await self.db_session.delete(goods_location)
-        await self.db_session.commit()
+        if current_user and goods_location.tenant_id != current_user.tenant_id:
+            return False, "无权删除此记录"
+        
+        await self._db_session.delete(goods_location)
+        await self._db_session.commit()
         
         return True, "删除成功"

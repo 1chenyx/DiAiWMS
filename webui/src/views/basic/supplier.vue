@@ -134,9 +134,11 @@ const dialogTitle = ref('添加供应商')
 const formRef = ref<FormInstance>()
 const editingId = ref<number | null>(null)
 
-const formData = reactive<SupplierCreate & { is_valid: boolean }>({
+const formData = reactive<SupplierCreate & { is_valid: boolean; contact: string; phone: string; email: string; description: string }>({
   supplier_name: '',
   supplier_code: '',
+  contact_person: '',
+  contact_tel: '',
   contact: '',
   phone: '',
   email: '',
@@ -159,7 +161,7 @@ const fetchData = async () => {
       supplier_name: searchForm.supplier_name || undefined,
       is_valid: searchForm.is_valid
     })
-    supplierList.value = result.rows
+    supplierList.value = result.rows || []
     pagination.total = result.totals
   } catch (error) {
     console.error('获取供应商列表失败:', error)

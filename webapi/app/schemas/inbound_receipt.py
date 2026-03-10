@@ -19,7 +19,7 @@ class InboundReceiptItemCreate(BaseModel):
 
 
 class InboundReceiptCreate(BaseModel):
-    pick_putaway_id: int = Field(..., description='拣货上架单ID')
+    inbound_pick_putaway_id: int = Field(..., description='拣货上架单ID')
     arrival_time: Optional[int] = Field(None, description='到货时间')
     unload_time: Optional[int] = Field(None, description='卸货时间')
     unload_person_id: Optional[int] = Field(None, description='卸货人ID')

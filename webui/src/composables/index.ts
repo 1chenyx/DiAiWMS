@@ -1,3 +1,6 @@
 export { useTable } from './useTable'
 export { useDialog, useDelete } from './useDialog'
 export { useForm } from './useForm'
+export { useStatusMap } from './useStatusMap'
+export { usePagination } from './usePagination'
+export { useConfirm } from './useConfirm'

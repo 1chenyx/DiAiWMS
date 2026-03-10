@@ -19,7 +19,7 @@ class SupplierRepository(BaseRepository[Supplier]):
         page_index: int,
         page_size: int,
         tenant_id: str,
-        supplier_name: Optional[str] = None
+        search_params: Optional[dict] = None
     ):
         """
         根据租户ID搜索供应商
@@ -28,15 +28,18 @@ class SupplierRepository(BaseRepository[Supplier]):
             page_index: 页码，从1开始
             page_size: 每页数量
             tenant_id: 租户ID
-            supplier_name: 供应商名称（模糊查询）
+            search_params: 搜索参数
             
         Returns:
             (供应商列表, 总数量)
         """
         query = select(Supplier).where(Supplier.tenant_id == tenant_id)
         
-        if supplier_name:
-            query = query.where(Supplier.supplier_name.like(f"%{supplier_name}%"))
+        if search_params:
+            if "supplier_name" in search_params:
+                query = query.where(Supplier.supplier_name.like(f"%{search_params['supplier_name']}%"))
+            if "is_valid" in search_params:
+                query = query.where(Supplier.is_valid == search_params["is_valid"])
         
         total_query = select(func.count()).select_from(query.subquery())
         total_result = await self._db_session.execute(total_query)

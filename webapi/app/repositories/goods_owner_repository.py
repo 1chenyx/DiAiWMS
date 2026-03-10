@@ -19,7 +19,7 @@ class GoodsOwnerRepository(BaseRepository[GoodsOwner]):
         page_index: int,
         page_size: int,
         tenant_id: str,
-        goods_owner_name: Optional[str] = None
+        search_params: Optional[dict] = None
     ):
         """
         根据租户ID搜索货主
@@ -28,15 +28,16 @@ class GoodsOwnerRepository(BaseRepository[GoodsOwner]):
             page_index: 页码，从1开始
             page_size: 每页数量
             tenant_id: 租户ID
-            goods_owner_name: 货主名称（模糊查询）
+            search_params: 搜索参数
             
         Returns:
             (货主列表, 总数量)
         """
         query = select(GoodsOwner).where(GoodsOwner.tenant_id == tenant_id)
         
-        if goods_owner_name:
-            query = query.where(GoodsOwner.goods_owner_name.like(f"%{goods_owner_name}%"))
+        if search_params:
+            if "goods_owner_name" in search_params:
+                query = query.where(GoodsOwner.goods_owner_name.like(f"%{search_params['goods_owner_name']}%"))
         
         total_query = select(func.count()).select_from(query.subquery())
         total_result = await self._db_session.execute(total_query)

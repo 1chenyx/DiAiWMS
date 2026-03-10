@@ -302,7 +302,6 @@
         <el-descriptions-item label="商品编码">{{ currentProduct.spu_code }}</el-descriptions-item>
         <el-descriptions-item label="商品分类">{{ currentProduct.category_name }}</el-descriptions-item>
         <el-descriptions-item label="品牌">{{ currentProduct.brand || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="供应商">{{ currentProduct.supplier_name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="描述" :span="2">{{ currentProduct.spu_description || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="currentProduct.is_valid ? 'success' : 'danger'">
@@ -344,10 +343,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { spuService, type Spu, type SpuCreate } from '@/services/spuService'
 import { categoryService, type Category, type CategoryCreate, type CategoryTreeNode } from '@/services/categoryService'
-import { skuService, type Sku, type SkuCreate, type SkuUpdate } from '@/services/skuService'
+import { skuService, type Sku, type SkuCreate } from '@/services/skuService'
 import { supplierService, type Supplier } from '@/services/supplierService'
 
-const treeRef = ref()
 const categoryLoading = ref(false)
 const productLoading = ref(false)
 const categorySubmitting = ref(false)
@@ -430,7 +428,7 @@ const skuDialogTitle = ref('添加SKU')
 const skuFormRef = ref<FormInstance>()
 const skuEditingId = ref<number | null>(null)
 
-const skuFormData = reactive<SkuCreate>({
+const skuFormData = reactive<SkuCreate & { is_valid: boolean }>({
   sku_name: '',
   sku_code: '',
   spu_id: 0,
@@ -439,7 +437,8 @@ const skuFormData = reactive<SkuCreate>({
   volume: undefined,
   length: undefined,
   width: undefined,
-  height: undefined
+  height: undefined,
+  is_valid: true
 })
 
 const skuFormRules = reactive<FormRules>({
@@ -481,7 +480,7 @@ const fetchProductList = async () => {
       category_id: selectedCategoryId.value,
       is_valid: searchForm.is_valid
     })
-    spuList.value = result.data
+    spuList.value = result.data || []
     pagination.total = result.totals
   } catch (error) {
     console.error('获取商品列表失败:', error)
@@ -618,7 +617,7 @@ const handleAddProduct = () => {
   productEditingId.value = null
   productFormData.spu_name = ''
   productFormData.spu_code = ''
-  productFormData.category_id = selectedCategoryId.value
+  productFormData.category_id = selectedCategoryId.value || 0
   productFormData.supplier_id = undefined
   productFormData.brand = ''
   productFormData.spu_description = ''
@@ -798,17 +797,23 @@ const handleSkuSubmit = () => {
     if (skuEditingId.value) {
       const index = productSkuList.value.findIndex(item => item.id === skuEditingId.value)
       if (index !== -1) {
+        const existingSku = productSkuList.value[index]!
         productSkuList.value[index] = {
-          ...productSkuList.value[index],
-          sku_name: skuFormData.sku_name,
+          id: existingSku.id,
           sku_code: skuFormData.sku_code,
+          sku_name: skuFormData.sku_name,
+          spu_id: existingSku.spu_id,
+          spu_code: existingSku.spu_code,
+          spu_name: existingSku.spu_name,
           bar_code: skuFormData.bar_code,
           weight: skuFormData.weight,
           volume: skuFormData.volume,
           length: skuFormData.length,
           width: skuFormData.width,
           height: skuFormData.height,
-          is_valid: skuFormData.is_valid
+          is_valid: skuFormData.is_valid || true,
+          create_time: existingSku.create_time,
+          update_time: new Date().toISOString()
         }
         ElMessage.success('更新成功')
       }
@@ -818,13 +823,15 @@ const handleSkuSubmit = () => {
         sku_name: skuFormData.sku_name,
         sku_code: skuFormData.sku_code,
         spu_id: 0,
+        spu_code: '',
+        spu_name: '',
         bar_code: skuFormData.bar_code,
         weight: skuFormData.weight,
         volume: skuFormData.volume,
         length: skuFormData.length,
         width: skuFormData.width,
         height: skuFormData.height,
-        is_valid: skuFormData.is_valid,
+        is_valid: skuFormData.is_valid || true,
         create_time: new Date().toISOString(),
         update_time: new Date().toISOString()
       }

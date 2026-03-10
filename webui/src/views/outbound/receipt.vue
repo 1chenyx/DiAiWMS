@@ -20,9 +20,7 @@
           </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="searchForm.receipt_status" placeholder="请选择状态" clearable>
-              <el-option label="待出库" :value="1" />
-              <el-option label="已出库" :value="2" />
-              <el-option label="已取消" :value="3" />
+              <el-option v-for="(label, value) in OutboundReceiptStatusMap" :key="value" :label="label" :value="value" />
             </el-select>
           </el-form-item>
           <el-form-item>
@@ -42,9 +40,7 @@
         <el-table-column prop="total_qty" label="总数量" />
         <el-table-column prop="receipt_status" label="状态" width="100">
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.receipt_status)">
-              {{ getStatusText(scope.row.receipt_status) }}
-            </el-tag>
+            <StatusTag :status="scope.row.receipt_status" :status-map="OutboundReceiptStatusMap" :type-map="OutboundReceiptStatusTypeMap" />
           </template>
         </el-table-column>
         <el-table-column prop="outbound_person" label="出库人" />
@@ -55,7 +51,7 @@
             <el-button type="primary" size="small" @click="handleViewDetail(scope.row)">
               <el-icon><View /></el-icon> 详情
             </el-button>
-            <el-button v-if="scope.row.receipt_status === 1" type="success" size="small" @click="handleCompleteOutbound(scope.row)">
+            <el-button v-if="scope.row.receipt_status === OutboundReceiptStatus.PENDING" type="success" size="small" @click="handleCompleteOutbound(scope.row)">
               <el-icon><Check /></el-icon> 完成出库
             </el-button>
             <el-button type="danger" size="small" @click="handleDelete(scope.row.id)">
@@ -69,7 +65,7 @@
         <el-pagination
           v-model:current-page="pagination.page_index"
           v-model:page-size="pagination.page_size"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="PAGE_SIZES"
           layout="total, sizes, prev, pager, next, jumper"
           :total="pagination.total"
           @size-change="handleSizeChange"
@@ -103,7 +99,9 @@
       <div class="receipt-detail" v-if="selectedReceipt">
         <el-descriptions :column="2" border class="receipt-header">
           <el-descriptions-item label="出库单号">{{ selectedReceipt.receipt_no }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ getStatusText(selectedReceipt.receipt_status) }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <StatusTag :status="selectedReceipt.receipt_status" :status-map="OutboundReceiptStatusMap" :type-map="OutboundReceiptStatusTypeMap" />
+          </el-descriptions-item>
           <el-descriptions-item label="拣货单号">{{ selectedReceipt.pick_putaway_no }}</el-descriptions-item>
           <el-descriptions-item label="出库订单号">{{ selectedReceipt.order_no }}</el-descriptions-item>
           <el-descriptions-item label="客户">{{ selectedReceipt.customer_name }}</el-descriptions-item>
@@ -137,11 +135,15 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { Plus, View, Delete, Check } from '@element-plus/icons-vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { outboundReceiptService, type OutboundReceiptViewModel, type OutboundReceiptCreate } from '@/services/outboundReceiptService'
+import { outboundReceiptService, type OutboundReceiptViewModel } from '@/services/outboundReceiptService'
 import { outboundPickPutawayService, type OutboundPickPutawayViewModel } from '@/services/outboundPickPutawayService'
 import { useUserStore } from '@/store/user'
+import { usePagination } from '@/composables/usePagination'
+import { useConfirm } from '@/composables/useConfirm'
+import { StatusTag } from '@/components/business'
+import { OutboundReceiptStatus, OutboundReceiptStatusMap, OutboundReceiptStatusTypeMap, OutboundPickPutawayStatus, PAGE_SIZES } from '@/constants'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -152,11 +154,8 @@ const searchForm = reactive({
   receipt_status: undefined as number | undefined
 })
 
-const pagination = reactive({
-  page_index: 1,
-  page_size: 10,
-  total: 0
-})
+const { pagination, handleSizeChange, handleCurrentChange, setTotal } = usePagination()
+const { confirmDelete, confirm } = useConfirm()
 
 const receiptList = ref<OutboundReceiptViewModel[]>([])
 const pickPutawayList = ref<OutboundPickPutawayViewModel[]>([])
@@ -172,7 +171,7 @@ const formRules = reactive<FormRules>({
 })
 
 const detailDialogVisible = ref(false)
-const selectedReceipt = ref<OutboundReceiptViewModel | null>(null)
+const selectedReceipt = ref<any>(null)
 const userStore = useUserStore()
 
 const fetchReceiptList = async () => {
@@ -185,8 +184,8 @@ const fetchReceiptList = async () => {
       order_no: searchForm.order_no || undefined,
       receipt_status: searchForm.receipt_status
     })
-    receiptList.value = result.rows
-    pagination.total = result.totals
+    receiptList.value = result.rows || []
+    setTotal(result.totals)
   } catch (error: any) {
     ElMessage.error(error.message || '获取出库单列表失败')
   } finally {
@@ -199,9 +198,9 @@ const fetchPickPutawayList = async () => {
     const result = await outboundPickPutawayService.getPage({
       page_index: 1,
       page_size: 1000,
-      pick_putaway_status: 3
+      pick_putaway_status: OutboundPickPutawayStatus.COMPLETED
     })
-    pickPutawayList.value = result.rows
+    pickPutawayList.value = result.rows || []
   } catch (error: any) {
     console.error('获取拣货单列表失败:', error)
   }
@@ -217,16 +216,6 @@ const resetSearch = () => {
   searchForm.order_no = ''
   searchForm.receipt_status = undefined
   pagination.page_index = 1
-  fetchReceiptList()
-}
-
-const handleSizeChange = (size: number) => {
-  pagination.page_size = size
-  fetchReceiptList()
-}
-
-const handleCurrentChange = (current: number) => {
-  pagination.page_index = current
   fetchReceiptList()
 }
 
@@ -267,60 +256,32 @@ const handleViewDetail = async (row: OutboundReceiptViewModel) => {
 }
 
 const handleCompleteOutbound = async (row: OutboundReceiptViewModel) => {
+  const confirmed = await confirm('确定要完成出库吗？此操作将扣减库存。', { title: '提示', type: 'warning' })
+  if (!confirmed) return
+  
   try {
-    await ElMessageBox.confirm('确定要完成出库吗？此操作将扣减库存。', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    
     await outboundReceiptService.completeOutbound(
       row.id,
-      userStore.userInfo?.username || '系统用户'
+      userStore.userInfo?.user_name || '系统用户'
     )
     
     ElMessage.success('完成出库成功')
     fetchReceiptList()
   } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '操作失败')
-    }
+    ElMessage.error(error.message || '操作失败')
   }
 }
 
 const handleDelete = async (id: number) => {
+  const confirmed = await confirmDelete('这个出库单')
+  if (!confirmed) return
+  
   try {
-    await ElMessageBox.confirm('确定要删除这个出库单吗？', '警告', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    
     await outboundReceiptService.delete(id)
     ElMessage.success('删除成功')
     fetchReceiptList()
   } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
-    }
-  }
-}
-
-const getStatusType = (status: number) => {
-  switch (status) {
-    case 1: return 'info'
-    case 2: return 'success'
-    case 3: return 'danger'
-    default: return ''
-  }
-}
-
-const getStatusText = (status: number) => {
-  switch (status) {
-    case 1: return '待出库'
-    case 2: return '已出库'
-    case 3: return '已取消'
-    default: return ''
+    ElMessage.error(error.message || '删除失败')
   }
 }
 

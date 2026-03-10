@@ -22,8 +22,12 @@ class GoodsOwnerService(TenantAwareService[GoodsOwnerRepository, GoodsOwner]):
         goods_owner_name: Optional[str] = None,
         current_user: Optional[CurrentUser] = None
     ) -> Tuple[List[GoodsOwnerViewModel], int]:
+        search_params = {}
+        if goods_owner_name:
+            search_params["goods_owner_name"] = goods_owner_name
+        
         entities, totals = await self._repository.search_by_tenant(
-            page_index, page_size, current_user.tenant_id, goods_owner_name
+            page_index, page_size, current_user.tenant_id, search_params
         )
 
         data = [
@@ -45,7 +49,7 @@ class GoodsOwnerService(TenantAwareService[GoodsOwnerRepository, GoodsOwner]):
         return data, totals
 
     async def get_all(self, current_user: CurrentUser) -> List[GoodsOwnerViewModel]:
-        entities = await self._repository.get_by_tenant(current_user.tenant_id)
+        entities = await self.get_by_tenant(current_user.tenant_id)
 
         return [
             GoodsOwnerViewModel(
@@ -63,10 +67,13 @@ class GoodsOwnerService(TenantAwareService[GoodsOwnerRepository, GoodsOwner]):
             for entity in entities
         ]
 
-    async def get_by_id(self, id: int) -> Optional[GoodsOwnerViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[GoodsOwnerViewModel]:
         entity = await self._repository.get_by_id(id)
 
         if entity is None:
+            return None
+        
+        if current_user and entity.tenant_id != current_user.tenant_id:
             return None
 
         return GoodsOwnerViewModel(
@@ -83,15 +90,16 @@ class GoodsOwnerService(TenantAwareService[GoodsOwnerRepository, GoodsOwner]):
         )
 
     async def create(self, data: GoodsOwnerCreate, current_user: CurrentUser) -> Tuple[int, str]:
-        existing = await self._repository.exists_by_fields({
-            "tenant_id": current_user.tenant_id,
-            "goods_owner_name": data.goods_owner_name
-        })
+        existing = await self.get_one_by_tenant(
+            current_user.tenant_id,
+            filters={"goods_owner_name": data.goods_owner_name}
+        )
 
         if existing:
             return 0, f"货主名称 {data.goods_owner_name} 已存在"
 
-        entity = await self._repository.create(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id,
             goods_owner_name=data.goods_owner_name,
             city=data.city,
             address=data.address,
@@ -100,8 +108,7 @@ class GoodsOwnerService(TenantAwareService[GoodsOwnerRepository, GoodsOwner]):
             creator=current_user.user_name,
             create_time=int(datetime.now().timestamp()),
             last_update_time=int(datetime.now().timestamp()),
-            is_valid=True,
-            tenant_id=current_user.tenant_id
+            is_valid=True
         )
 
         if entity.id > 0:
@@ -115,16 +122,17 @@ class GoodsOwnerService(TenantAwareService[GoodsOwnerRepository, GoodsOwner]):
         if entity is None:
             return False, "记录不存在"
 
-        existing = await self._repository.exists_by_fields({
-            "tenant_id": entity.tenant_id,
-            "goods_owner_name": data.goods_owner_name
-        }, exclude_id=data.id)
+        existing = await self.get_one_by_tenant(
+            entity.tenant_id,
+            filters={"goods_owner_name": data.goods_owner_name}
+        )
 
-        if existing:
+        if existing and existing.id != data.id:
             return False, f"货主名称 {data.goods_owner_name} 已存在"
 
-        await self._repository.update(
+        await self.update_with_tenant(
             data.id,
+            entity.tenant_id,
             goods_owner_name=data.goods_owner_name,
             city=data.city,
             address=data.address,

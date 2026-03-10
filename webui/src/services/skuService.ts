@@ -1,26 +1,27 @@
 import { BaseService } from './baseService'
 import { http } from './api'
 import type { BaseEntity, PageParams, PageResult } from '@/types/common'
+import { PaginationHelper } from '@/utils/pagination'
 
 export interface Sku extends BaseEntity {
   id: number
-  sku_name: string
   sku_code: string
+  sku_name: string
   spu_id: number
-  spu_name?: string
-  spu_code?: string
+  spu_code: string
+  spu_name: string
   bar_code?: string
+  is_valid: boolean
   weight?: number
   volume?: number
   length?: number
   width?: number
   height?: number
-  is_valid: boolean
 }
 
 export interface SkuCreate {
-  sku_name: string
   sku_code: string
+  sku_name: string
   spu_id: number
   bar_code?: string
   weight?: number
@@ -33,8 +34,8 @@ export interface SkuCreate {
 
 export interface SkuUpdate {
   id: number
-  sku_name?: string
   sku_code?: string
+  sku_name?: string
   spu_id?: number
   bar_code?: string
   weight?: number
@@ -61,8 +62,18 @@ class SkuService extends BaseService<Sku, SkuCreate, SkuUpdate> {
     })
   }
 
-  getList(spu_id?: number): Promise<Sku[]> {
-    return http.get('/sku/list', { params: { spu_id: spu_id || 0 } })
+  getPage(params: SkuPageParams): Promise<PageResult<Sku>> {
+    const normalizedParams = PaginationHelper.normalizeParams(params)
+    return http.get('/sku/page', { params: normalizedParams })
+  }
+
+  getList(spuId?: number): Promise<Sku[]> {
+    const params = spuId !== undefined ? { spu_id: spuId } : {}
+    return http.get('/sku/list', { params })
+  }
+
+  getAll(spuId?: number): Promise<Sku[]> {
+    return this.getList(spuId)
   }
 }
 

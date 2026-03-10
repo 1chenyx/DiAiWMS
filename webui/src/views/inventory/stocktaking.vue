@@ -45,7 +45,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="creator" label="创建人" />
-        <el-table-column prop="create_time" label="创建时间" />
+        <el-table-column prop="create_time" label="创建时间">
+          <template #default="scope">
+            {{ formatTimestamp(scope.row.create_time) }}
+          </template>
+        </el-table-column>
         <el-table-column label="操作" fixed="right">
           <template #default="scope">
             <el-button 
@@ -214,8 +218,8 @@
         <el-descriptions-item label="账面数量">{{ selectedStocktaking.book_qty }}</el-descriptions-item>
         <el-descriptions-item label="盘点数量">{{ selectedStocktaking.counted_qty }}</el-descriptions-item>
         <el-descriptions-item label="差异数量">
-          <el-tag :type="getDifferenceType(selectedStocktaking.difference_qty)">
-            {{ selectedStocktaking.difference_qty }}
+          <el-tag :type="getDifferenceType(selectedStocktaking.difference_qty || 0)">
+            {{ selectedStocktaking.difference_qty || 0 }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="状态">
@@ -225,8 +229,8 @@
         </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ selectedStocktaking.creator }}</el-descriptions-item>
         <el-descriptions-item label="处理人">{{ selectedStocktaking.handler || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ formatTime(selectedStocktaking.create_time) }}</el-descriptions-item>
-        <el-descriptions-item label="处理时间">{{ selectedStocktaking.handle_time ? formatTime(selectedStocktaking.handle_time) : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatTimestamp(selectedStocktaking.create_time) }}</el-descriptions-item>
+        <el-descriptions-item label="处理时间">{{ formatTimestamp(selectedStocktaking.handle_time) }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <span class="dialog-footer">
@@ -238,7 +242,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { Plus, Edit, Delete, View } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -246,6 +250,7 @@ import { stocktakingService, type Stocktaking, type StocktakingCreate, type Stoc
 import { skuService, type Sku } from '@/services/skuService'
 import { warehouseLocationService } from '@/services/warehouseLocationService'
 import { goodsOwnerService, type GoodsOwner } from '@/services/goodsOwnerService'
+import { formatTimestamp } from '@/utils/format'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -323,12 +328,6 @@ const getDifferenceType = (diff: number): string => {
   return 'success'
 }
 
-const formatTime = (timestamp: number): string => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp * 1000)
-  return date.toLocaleString('zh-CN')
-}
-
 const fetchStocktakingList = async () => {
   loading.value = true
   try {
@@ -337,7 +336,7 @@ const fetchStocktakingList = async () => {
       page_size: pagination.page_size,
       job_code: searchForm.job_code || undefined
     })
-    stocktakingList.value = result.rows
+    stocktakingList.value = result.rows || []
     pagination.total = result.totals
   } catch (error: any) {
     ElMessage.error(error.message || '获取盘点列表失败')
@@ -348,8 +347,7 @@ const fetchStocktakingList = async () => {
 
 const fetchSkuList = async () => {
   try {
-    const result = await skuService.getList()
-    skuList.value = result
+    skuList.value = await skuService.getList()
   } catch (error: any) {
     console.error('获取SKU列表失败', error)
   }
@@ -357,7 +355,7 @@ const fetchSkuList = async () => {
 
 const fetchLocationList = async () => {
   try {
-    const result = await warehouseLocationService.getList(3)
+    const result = await warehouseLocationService.getAll(3)
     locationList.value = result
   } catch (error: any) {
     console.error('获取库位列表失败', error)

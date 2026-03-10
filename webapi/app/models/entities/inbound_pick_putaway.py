@@ -17,6 +17,7 @@ class InboundPickPutaway(WMSBaseModel):
     pick_putaway_status = Column(Integer, nullable=False, default=0, comment='拣货上架状态：0-待上架，1-上架中，2-上架完成，3-已生成入库单，4-已取消')
     order_id = Column(Integer, ForeignKey('inbound_order.id'), nullable=False, comment='入库订单ID')
     order_no = Column(String(64), nullable=False, default='', comment='入库订单号')
+    order_nos = Column(String(512), nullable=False, default='', comment='入库订单号列表（JSON格式）')
     supplier_id = Column(Integer, nullable=False, default=0, comment='供应商ID')
     supplier_name = Column(String(128), nullable=False, default='', comment='供应商名称')
     warehouse_id = Column(Integer, nullable=False, default=0, comment='仓库ID')

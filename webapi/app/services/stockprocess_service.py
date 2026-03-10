@@ -6,11 +6,15 @@ from app.models.entities.stockprocess import Stockprocess
 from app.models.entities.stockprocessdetail import Stockprocessdetail
 from app.schemas.stockprocess import StockprocessCreate, StockprocessUpdate, StockprocessViewModel
 from app.core.current_user import CurrentUser
+from app.repositories.stockprocess_repository import StockprocessRepository
+from app.services.base_service import TenantAwareService
 
 
-class StockprocessService:
+class StockprocessService(TenantAwareService[StockprocessRepository, Stockprocess]):
     def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+        repository = StockprocessRepository(db_session)
+        super().__init__(repository)
+        self._db_session = db_session
 
     async def search(
         self,
@@ -19,21 +23,16 @@ class StockprocessService:
         job_code: Optional[str] = None,
         current_user: Optional[CurrentUser] = None
     ) -> Tuple[List[StockprocessViewModel], int]:
-        query = select(Stockprocess)
-        query = query.where(Stockprocess.tenant_id == current_user.tenant_id if current_user else 1)
-
+        filters = {}
         if job_code:
-            query = query.where(Stockprocess.job_code.like(f'%{job_code}%'))
-
-        total_query = select(Stockprocess.id).where(query.whereclause)
-        total_result = await self.db_session.execute(total_query)
-        totals = len(total_result.scalars().all())
-
-        query = query.order_by(Stockprocess.create_time.desc())
-        query = query.offset((page_index - 1) * page_size).limit(page_size)
-
-        result = await self.db_session.execute(query)
-        entities = result.scalars().all()
+            filters["job_code"] = f"%{job_code}%"
+        
+        entities, totals = await self.page_query_by_tenant(
+            page_index=page_index,
+            page_size=page_size,
+            tenant_id=current_user.tenant_id if current_user else "",
+            filters=filters
+        )
 
         data = [
             StockprocessViewModel(
@@ -56,7 +55,7 @@ class StockprocessService:
     async def get_by_id(self, id: int) -> Optional[StockprocessViewModel]:
         query = select(Stockprocess).where(Stockprocess.id == id)
 
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         entity = result.scalar_one_or_none()
 
         if entity is None:
@@ -76,7 +75,8 @@ class StockprocessService:
         )
 
     async def create(self, data: StockprocessCreate, current_user: CurrentUser) -> Tuple[int, str]:
-        entity = Stockprocess(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id,
             job_code=data.job_code,
             job_type=data.job_type,
             process_status=False,
@@ -84,38 +84,32 @@ class StockprocessService:
             process_time=0,
             creator=current_user.user_name,
             create_time=int(datetime.now().timestamp()),
-            last_update_time=int(datetime.now().timestamp()),
-            tenant_id=current_user.tenant_id
+            last_update_time=int(datetime.now().timestamp())
         )
-
-        self.db_session.add(entity)
-        await self.db_session.commit()
 
         if entity.id > 0:
             return entity.id, "保存成功"
         else:
             return 0, "保存失败"
 
-    async def update(self, data: StockprocessUpdate) -> Tuple[bool, str]:
-        query = select(Stockprocess).where(Stockprocess.id == data.id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def update(self, data: StockprocessUpdate, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(data.id)
 
         if entity is None:
             return False, "记录不存在"
 
-        entity.job_code = data.job_code
-        entity.job_type = data.job_type
-        entity.last_update_time = int(datetime.now().timestamp())
-
-        await self.db_session.commit()
+        await self.update_with_tenant(
+            data.id,
+            entity.tenant_id,
+            job_code=data.job_code,
+            job_type=data.job_type,
+            last_update_time=int(datetime.now().timestamp())
+        )
 
         return True, "保存成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
-        query = select(Stockprocess).where(Stockprocess.id == id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def delete(self, id: int, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(id)
 
         if entity is None:
             return False, "记录不存在"
@@ -123,7 +117,7 @@ class StockprocessService:
         if entity.process_status:
             return False, "已加工，无法删除"
 
-        await self.db_session.delete(entity)
-        await self.db_session.commit()
+        await self._db_session.delete(entity)
+        await self._db_session.commit()
 
         return True, "删除成功"

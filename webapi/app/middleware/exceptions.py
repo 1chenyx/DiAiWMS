@@ -27,6 +27,7 @@ class ExceptionsHandler:
             code=exc.code,
             error=exc.error or exc,
             data=exc.data,
+            status_code=exc.code if exc.code >= 400 and exc.code < 600 else 500
         )
 
     @staticmethod

@@ -35,19 +35,20 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
         customer_id: Optional[int] = None,
         current_user: Optional[CurrentUser] = None
     ) -> Tuple[List[OutboundOrderViewModel], int]:
+        search_params = {}
+        if order_no:
+            search_params["outbound_order_code"] = order_no
+        if order_status is not None:
+            search_params["order_status"] = order_status
+        if customer_id is not None:
+            search_params["customer_id"] = customer_id
+        
         entities, totals = await self._repository.search_by_tenant(
-            page_index, page_size, current_user.tenant_id, order_no, order_status, customer_id
+            page_index, page_size, current_user.tenant_id, search_params
         )
 
         data = []
         for entity in entities:
-            warehouse_name = None
-            if entity.warehouse_id > 0:
-                warehouse_query = select(WarehouseLocation).where(WarehouseLocation.id == entity.warehouse_id)
-                warehouse_result = await self._db_session.execute(warehouse_query)
-                warehouse = warehouse_result.scalar_one_or_none()
-                warehouse_name = warehouse.node_name if warehouse else None
-
             data.append(OutboundOrderViewModel(
                 id=entity.id,
                 order_no=entity.order_no,
@@ -55,7 +56,7 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
                 customer_id=entity.customer_id,
                 customer_name=entity.customer_name,
                 warehouse_id=entity.warehouse_id,
-                warehouse_name=warehouse_name,
+                warehouse_name=entity.warehouse_name,
                 goods_owner_id=entity.goods_owner_id,
                 goods_owner_name=entity.goods_owner_name,
                 total_qty=entity.total_qty,
@@ -77,13 +78,6 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
         if entity is None:
             return None
 
-        warehouse_name = None
-        if entity.warehouse_id > 0:
-            warehouse_query = select(WarehouseLocation).where(WarehouseLocation.id == entity.warehouse_id)
-            warehouse_result = await self._db_session.execute(warehouse_query)
-            warehouse = warehouse_result.scalar_one_or_none()
-            warehouse_name = warehouse.node_name if warehouse else None
-
         items = await self._get_items_by_order_id(id)
 
         return OutboundOrderViewModel(
@@ -93,7 +87,7 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
             customer_id=entity.customer_id,
             customer_name=entity.customer_name,
             warehouse_id=entity.warehouse_id,
-            warehouse_name=warehouse_name,
+            warehouse_name=entity.warehouse_name,
             goods_owner_id=entity.goods_owner_id,
             goods_owner_name=entity.goods_owner_name,
             total_qty=entity.total_qty,
@@ -117,13 +111,6 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
         items = []
         for row in rows:
             entity, sku, spu = row
-            goods_location_code = None
-            if entity.goods_location_id > 0:
-                location_query = select(WarehouseLocation).where(WarehouseLocation.id == entity.goods_location_id)
-                location_result = await self._db_session.execute(location_query)
-                location = location_result.scalar_one_or_none()
-                goods_location_code = location.location_code if location else None
-
             items.append(OutboundOrderItemViewModel(
                 id=entity.id,
                 order_id=entity.order_id,
@@ -139,7 +126,7 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
                 price=float(entity.price),
                 expiry_date=entity.expiry_date,
                 goods_location_id=entity.goods_location_id,
-                goods_location_code=goods_location_code,
+                goods_location_code=entity.goods_location_code,
                 tenant_id=entity.tenant_id
             ))
 
@@ -164,6 +151,8 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
 
         if warehouse is None:
             return 0, "仓库不存在"
+
+        warehouse_name = warehouse.node_name
 
         goods_owner_name = data.goods_owner_name
         if data.goods_owner_id > 0:
@@ -192,9 +181,11 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
             if spu is None:
                 return 0, f"SPU ID {item.spu_id} 不存在"
 
-            query = select(Sku).where(Sku.id == item.sku_id)
-            result = await self._db_session.execute(query)
-            sku = result.scalar_one_or_none()
+            sku = await self.get_one_entity_by_tenant(
+                Sku,
+                current_user.tenant_id,
+                filters={"id": item.sku_id}
+            )
 
             if sku is None:
                 return 0, f"SKU ID {item.sku_id} 不存在"
@@ -203,12 +194,14 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
             total_weight += item.weight
             total_volume += item.volume
 
-        entity = await self._repository.create(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id,
             order_no=order_no,
             order_status=0,
             customer_id=data.customer_id,
             customer_name=customer_name,
             warehouse_id=data.warehouse_id,
+            warehouse_name=warehouse_name,
             goods_owner_id=data.goods_owner_id,
             goods_owner_name=goods_owner_name or '',
             total_qty=total_qty,
@@ -217,28 +210,54 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
             remark=data.remark,
             creator=current_user.user_name,
             create_time=int(datetime.now().timestamp()),
-            last_update_time=int(datetime.now().timestamp()),
-            tenant_id=current_user.tenant_id
+            last_update_time=int(datetime.now().timestamp())
         )
 
         for item in data.items:
             item_price = item.price
             if item_price is None:
-                query = select(Sku).where(Sku.id == item.sku_id)
-                result = await self._db_session.execute(query)
-                sku = result.scalar_one_or_none()
+                sku = await self.get_one_entity_by_tenant(
+                    Sku,
+                    current_user.tenant_id,
+                    filters={"id": item.sku_id}
+                )
                 item_price = sku.price if sku else 0
+
+            query = select(Spu).where(Spu.id == item.spu_id)
+            result = await self._db_session.execute(query)
+            spu = result.scalar_one_or_none()
+
+            sku = await self.get_one_entity_by_tenant(
+                Sku,
+                current_user.tenant_id,
+                filters={"id": item.sku_id}
+            )
+
+            goods_location_code = ''
+            if item.goods_location_id > 0:
+                query = select(WarehouseLocation).where(WarehouseLocation.id == item.goods_location_id)
+                result = await self._db_session.execute(query)
+                location = result.scalar_one_or_none()
+                if location:
+                    goods_location_code = location.node_name
 
             item_entity = OutboundOrderItem(
                 order_id=entity.id,
                 spu_id=item.spu_id,
+                spu_code=spu.spu_code if spu else '',
+                spu_name=spu.spu_name if spu else '',
                 sku_id=item.sku_id,
+                sku_code=sku.sku_code if sku else '',
+                sku_name=sku.sku_name if sku else '',
                 qty=item.qty,
                 weight=item.weight,
                 volume=item.volume,
                 price=item_price,
                 expiry_date=item.expiry_date,
+                batch_no=item.batch_no or '',
+                production_date=item.production_date or 0,
                 goods_location_id=item.goods_location_id,
+                goods_location_code=goods_location_code,
                 tenant_id=current_user.tenant_id
             )
             self._db_session.add(item_entity)
@@ -266,6 +285,14 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
             update_data["customer_name"] = data.customer_name
         if data.warehouse_id is not None:
             update_data["warehouse_id"] = data.warehouse_id
+            query = select(WarehouseLocation).where(
+                WarehouseLocation.id == data.warehouse_id,
+                WarehouseLocation.node_type == 1
+            )
+            result = await self._db_session.execute(query)
+            warehouse = result.scalar_one_or_none()
+            if warehouse:
+                update_data["warehouse_name"] = warehouse.node_name
         if data.goods_owner_id is not None:
             update_data["goods_owner_id"] = data.goods_owner_id
         if data.goods_owner_name is not None:
@@ -276,7 +303,7 @@ class OutboundOrderService(TenantAwareService[OutboundOrderRepository, OutboundO
         update_data["last_update_time"] = int(datetime.now().timestamp())
 
         if update_data:
-            await self._repository.update(data.id, **update_data)
+            await self.update_with_tenant(data.id, entity.tenant_id, **update_data)
 
         return True, "保存成功"
 

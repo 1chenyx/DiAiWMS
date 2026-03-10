@@ -23,8 +23,14 @@ class SupplierService(TenantAwareService[SupplierRepository, Supplier]):
         is_valid: Optional[bool] = None,
         current_user: Optional[CurrentUser] = None
     ) -> Tuple[List[SupplierViewModel], int]:
+        search_params = {}
+        if supplier_name:
+            search_params["supplier_name"] = supplier_name
+        if is_valid is not None:
+            search_params["is_valid"] = is_valid
+        
         entities, totals = await self._repository.search_by_tenant(
-            page_index, page_size, current_user.tenant_id, supplier_name, is_valid
+            page_index, page_size, current_user.tenant_id, search_params
         )
 
         data = [
@@ -48,7 +54,7 @@ class SupplierService(TenantAwareService[SupplierRepository, Supplier]):
         return data, totals
 
     async def get_all(self, current_user: CurrentUser) -> List[SupplierViewModel]:
-        entities = await self._repository.get_by_tenant(current_user.tenant_id)
+        entities = await self.get_by_tenant(current_user.tenant_id)
 
         return [
             SupplierViewModel(
@@ -68,10 +74,13 @@ class SupplierService(TenantAwareService[SupplierRepository, Supplier]):
             for entity in entities
         ]
 
-    async def get_by_id(self, id: int) -> Optional[SupplierViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[SupplierViewModel]:
         entity = await self._repository.get_by_id(id)
 
         if entity is None:
+            return None
+        
+        if current_user and entity.tenant_id != current_user.tenant_id:
             return None
 
         return SupplierViewModel(
@@ -90,15 +99,16 @@ class SupplierService(TenantAwareService[SupplierRepository, Supplier]):
         )
 
     async def create(self, data: SupplierCreate, current_user: CurrentUser) -> Tuple[int, str]:
-        existing = await self._repository.exists_by_fields({
-            "supplier_name": data.supplier_name,
-            "tenant_id": current_user.tenant_id
-        })
+        existing = await self.get_one_by_tenant(
+            current_user.tenant_id,
+            filters={"supplier_name": data.supplier_name}
+        )
 
         if existing:
             return 0, f"供应商名称 {data.supplier_name} 已存在"
 
-        entity = await self._repository.create(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id,
             supplier_name=data.supplier_name,
             city=data.city,
             address=data.address,
@@ -108,8 +118,7 @@ class SupplierService(TenantAwareService[SupplierRepository, Supplier]):
             creator=current_user.user_name,
             create_time=int(datetime.now().timestamp()),
             last_update_time=int(datetime.now().timestamp()),
-            is_valid=True,
-            tenant_id=current_user.tenant_id
+            is_valid=True
         )
 
         if entity.id > 0:
@@ -122,17 +131,21 @@ class SupplierService(TenantAwareService[SupplierRepository, Supplier]):
 
         if entity is None:
             return False, "记录不存在"
+        
+        if current_user and entity.tenant_id != current_user.tenant_id:
+            return False, "无权修改此记录"
 
-        existing = await self._repository.exists_by_fields({
-            "supplier_name": data.supplier_name,
-            "tenant_id": current_user.tenant_id
-        }, exclude_id=data.id)
+        existing = await self.get_one_by_tenant(
+            current_user.tenant_id,
+            filters={"supplier_name": data.supplier_name}
+        )
 
-        if existing:
+        if existing and existing.id != data.id:
             return False, f"供应商名称 {data.supplier_name} 已存在"
 
-        await self._repository.update(
+        await self.update_with_tenant(
             data.id,
+            current_user.tenant_id,
             supplier_name=data.supplier_name,
             city=data.city,
             address=data.address,
@@ -144,11 +157,14 @@ class SupplierService(TenantAwareService[SupplierRepository, Supplier]):
 
         return True, "保存成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
+    async def delete(self, id: int, current_user: Optional[CurrentUser] = None) -> Tuple[bool, str]:
         entity = await self._repository.get_by_id(id)
 
         if entity is None:
             return False, "记录不存在"
+        
+        if current_user and entity.tenant_id != current_user.tenant_id:
+            return False, "无权删除此记录"
 
         result = await self._repository.delete(id)
 

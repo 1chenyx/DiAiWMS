@@ -6,10 +6,12 @@ import { PaginationHelper } from '@/utils/pagination'
 export interface GoodsOwner extends BaseEntity {
   id: number
   goods_owner_name: string
-  goods_owner_code: string
+  goods_owner_code?: string
+  contact_person: string
   contact?: string
   phone?: string
   email?: string
+  contact_tel: string
   address?: string
   description?: string
   is_valid: boolean
@@ -17,22 +19,25 @@ export interface GoodsOwner extends BaseEntity {
 
 export interface GoodsOwnerCreate {
   goods_owner_name: string
-  goods_owner_code: string
+  goods_owner_code?: string
+  contact_person: string
   contact?: string
   phone?: string
   email?: string
+  contact_tel: string
   address?: string
   description?: string
-  is_valid?: boolean
 }
 
 export interface GoodsOwnerUpdate {
   id: number
   goods_owner_name?: string
   goods_owner_code?: string
+  contact_person?: string
   contact?: string
   phone?: string
   email?: string
+  contact_tel?: string
   address?: string
   description?: string
   is_valid?: boolean

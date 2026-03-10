@@ -26,7 +26,7 @@
           <el-menu-item index="/basic/supplier">供应商管理</el-menu-item>
           <el-menu-item index="/basic/customer">客户管理</el-menu-item>
           <el-menu-item index="/basic/goods-owner">货主管理</el-menu-item>
-          <el-menu-item index="/basic/ai-config">租户AI配置</el-menu-item>
+          <el-menu-item index="/basic/ai-config">AI配置</el-menu-item>
         </el-sub-menu>
         
         <el-sub-menu index="inbound">

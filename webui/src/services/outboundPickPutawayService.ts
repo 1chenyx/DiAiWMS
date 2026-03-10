@@ -4,17 +4,16 @@ import type { BaseEntity, PageParams, PageResult } from '@/types/common'
 import { PaginationHelper } from '@/utils/pagination'
 
 export interface OutboundPickPutawayItem {
-  outbound_order_item_id: number
-  spu_id: number
   sku_id: number
   qty: number
-  picked_qty: number
-  location_id?: number
-  location_name?: string
+  goods_location_id: number
+  remark?: string
 }
 
 export interface OutboundPickPutawayCreate {
-  outbound_order_id: number
+  order_id?: number
+  outbound_order_id?: number
+  items?: OutboundPickPutawayItem[]
 }
 
 export interface OutboundPickPutawayUpdate {
@@ -24,40 +23,38 @@ export interface OutboundPickPutawayUpdate {
 
 export interface OutboundPickPutawayItemUpdate {
   id: number
-  picked_qty?: number
-  location_id?: number
+  picked_qty: number
+  goods_location_id: number
+  picker_id: number
+  picker: string
+  pick_time: number
 }
 
 export interface OutboundPickPutawayItemViewModel {
   id: number
   outbound_pick_putaway_id: number
-  outbound_order_item_id: number
-  spu_id: number
   sku_id: number
-  spu_name: string
-  sku_name: string
   sku_code: string
+  sku_name: string
   qty: number
-  picked_qty: number
-  location_id?: number
-  location_name?: string
+  goods_location_id: number
+  goods_location_name: string
+  remark?: string
 }
 
 export interface OutboundPickPutawayViewModel extends BaseEntity {
   id: number
   pick_putaway_no: string
-  outbound_order_id: number
+  order_id: number
   order_no: string
-  customer_id: number
-  customer_name: string
-  warehouse_id: number
-  warehouse_name: string
+  customer_name?: string
   pick_putaway_status: number
   total_qty: number
-  total_picked_qty: number
-  picker_id?: number
+  total_picked_qty?: number
+  warehouse_name?: string
   picker?: string
   pick_time?: string
+  warehouse_id?: number
   remark?: string
   items?: OutboundPickPutawayItemViewModel[]
 }

@@ -7,11 +7,15 @@ from app.models.entities.sku import Sku
 from app.models.entities.goods_location import GoodsLocation
 from app.schemas.stockfreeze import StockfreezeCreate, StockfreezeUpdate, StockfreezeViewModel
 from app.core.current_user import CurrentUser
+from app.repositories.stockfreeze_repository import StockfreezeRepository
+from app.services.base_service import TenantAwareService
 
 
-class StockfreezeService:
+class StockfreezeService(TenantAwareService[StockfreezeRepository, Stockfreeze]):
     def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+        repository = StockfreezeRepository(db_session)
+        super().__init__(repository)
+        self._db_session = db_session
 
     async def search(
         self,
@@ -28,13 +32,13 @@ class StockfreezeService:
             query = query.where(Stockfreeze.job_code.like(f'%{job_code}%'))
 
         total_query = select(Stockfreeze.id).where(query.whereclause)
-        total_result = await self.db_session.execute(total_query)
+        total_result = await self._db_session.execute(total_query)
         totals = len(total_result.scalars().all())
 
         query = query.order_by(Stockfreeze.create_time.desc())
         query = query.offset((page_index - 1) * page_size).limit(page_size)
 
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         entities = result.scalars().all()
 
         data = [
@@ -64,7 +68,7 @@ class StockfreezeService:
         query = query.join(GoodsLocation, Stockfreeze.goods_location_id == GoodsLocation.id)
         query = query.where(Stockfreeze.id == id)
 
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         entity = result.scalar_one_or_none()
 
         if entity is None:
@@ -88,7 +92,8 @@ class StockfreezeService:
         )
 
     async def create(self, data: StockfreezeCreate, current_user: CurrentUser) -> Tuple[int, str]:
-        entity = Stockfreeze(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id,
             job_code=data.job_code,
             job_type=data.job_type,
             sku_id=data.sku_id,
@@ -97,47 +102,41 @@ class StockfreezeService:
             handler='',
             handle_time=0,
             last_update_time=int(datetime.now().timestamp()),
-            tenant_id=current_user.tenant_id,
             series_number=data.series_number
         )
-
-        self.db_session.add(entity)
-        await self.db_session.commit()
 
         if entity.id > 0:
             return entity.id, "保存成功"
         else:
             return 0, "保存失败"
 
-    async def update(self, data: StockfreezeUpdate) -> Tuple[bool, str]:
-        query = select(Stockfreeze).where(Stockfreeze.id == data.id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def update(self, data: StockfreezeUpdate, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(data.id)
 
         if entity is None:
             return False, "记录不存在"
 
-        entity.job_code = data.job_code
-        entity.job_type = data.job_type
-        entity.sku_id = data.sku_id
-        entity.goods_owner_id = data.goods_owner_id
-        entity.goods_location_id = data.goods_location_id
-        entity.series_number = data.series_number
-        entity.last_update_time = int(datetime.now().timestamp())
-
-        await self.db_session.commit()
+        await self.update_with_tenant(
+            data.id,
+            entity.tenant_id,
+            job_code=data.job_code,
+            job_type=data.job_type,
+            sku_id=data.sku_id,
+            goods_owner_id=data.goods_owner_id,
+            goods_location_id=data.goods_location_id,
+            series_number=data.series_number,
+            last_update_time=int(datetime.now().timestamp())
+        )
 
         return True, "保存成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
-        query = select(Stockfreeze).where(Stockfreeze.id == id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def delete(self, id: int, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(id)
 
         if entity is None:
             return False, "记录不存在"
 
-        await self.db_session.delete(entity)
-        await self.db_session.commit()
+        await self._db_session.delete(entity)
+        await self._db_session.commit()
 
         return True, "删除成功"

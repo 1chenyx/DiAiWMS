@@ -5,11 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.entities import WarehouseArea, Warehouse, GoodsLocation
 from app.schemas.warehouse_area import WarehouseAreaViewModel, WarehouseAreaCreateViewModel, WarehouseAreaUpdateViewModel
 from app.core.current_user import CurrentUser
+from app.repositories.warehouse_area_repository import WarehouseAreaRepository
+from app.services.base_service import TenantAwareService
 
 
-class WarehouseAreaService:
+class WarehouseAreaService(TenantAwareService[WarehouseAreaRepository, WarehouseArea]):
     def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+        repository = WarehouseAreaRepository(db_session)
+        super().__init__(repository)
+        self._db_session = db_session
 
     async def page_search(
         self,
@@ -18,27 +22,21 @@ class WarehouseAreaService:
         search_params: Optional[dict] = None,
         current_user: Optional[CurrentUser] = None
     ) -> Tuple[List[WarehouseAreaViewModel], int]:
-        query = select(WarehouseArea, Warehouse).join(
-            Warehouse, WarehouseArea.warehouse_id == Warehouse.id
-        ).where(WarehouseArea.tenant_id == current_user.tenant_id)
-        
+        filters = {}
         if search_params:
             if "area_name" in search_params:
-                query = query.where(WarehouseArea.area_name.like(f"%{search_params['area_name']}%"))
+                filters["area_name"] = f"%{search_params['area_name']}%"
             if "warehouse_id" in search_params:
-                query = query.where(WarehouseArea.warehouse_id == search_params["warehouse_id"])
+                filters["warehouse_id"] = search_params["warehouse_id"]
             if "is_valid" in search_params:
-                query = query.where(WarehouseArea.is_valid == search_params["is_valid"])
+                filters["is_valid"] = search_params["is_valid"]
         
-        total_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db_session.execute(total_query)
-        totals = total_result.scalar()
-        
-        query = query.order_by(WarehouseArea.create_time.desc())
-        query = query.offset((page_index - 1) * page_size).limit(page_size)
-        
-        result = await self.db_session.execute(query)
-        rows = result.all()
+        warehouse_areas, totals = await self.page_query_by_tenant(
+            page_index=page_index,
+            page_size=page_size,
+            tenant_id=current_user.tenant_id,
+            filters=filters
+        )
         
         data = [
             WarehouseAreaViewModel(
@@ -52,19 +50,19 @@ class WarehouseAreaService:
                 tenant_id=warehouse_area.tenant_id,
                 area_property=warehouse_area.area_property
             )
-            for warehouse_area, warehouse in rows
+            for warehouse_area in warehouse_areas
         ]
         
         return data, totals
 
     async def get_warehousearea_by_warehouse_id(self, warehouse_id: int, current_user: CurrentUser) -> List[dict]:
-        query = select(WarehouseArea).where(
-            WarehouseArea.is_valid == True,
-            WarehouseArea.tenant_id == current_user.tenant_id,
-            WarehouseArea.warehouse_id == warehouse_id
+        warehouse_areas = await self.query_by_tenant(
+            current_user.tenant_id,
+            filters={
+                "is_valid": True,
+                "warehouse_id": warehouse_id
+            }
         )
-        result = await self.db_session.execute(query)
-        warehouse_areas = result.scalars().all()
         
         return [
             {
@@ -77,16 +75,11 @@ class WarehouseAreaService:
         ]
 
     async def get_all(self, warehouse_id: int, current_user: CurrentUser) -> List[WarehouseAreaViewModel]:
-        query = select(WarehouseArea).where(
-            WarehouseArea.is_valid == True,
-            WarehouseArea.tenant_id == current_user.tenant_id
-        )
-        
+        filters = {"is_valid": True}
         if warehouse_id > 0:
-            query = query.where(WarehouseArea.warehouse_id == warehouse_id)
+            filters["warehouse_id"] = warehouse_id
         
-        result = await self.db_session.execute(query)
-        warehouse_areas = result.scalars().all()
+        warehouse_areas = await self.query_by_tenant(current_user.tenant_id, filters=filters)
         
         return [
             WarehouseAreaViewModel(
@@ -103,12 +96,15 @@ class WarehouseAreaService:
             for warehouse_area in warehouse_areas
         ]
 
-    async def get_by_id(self, id: int) -> Optional[WarehouseAreaViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[WarehouseAreaViewModel]:
         query = select(WarehouseArea).where(WarehouseArea.id == id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         warehouse_area = result.scalar_one_or_none()
         
         if warehouse_area is None:
+            return None
+        
+        if current_user and warehouse_area.tenant_id != current_user.tenant_id:
             return None
         
         return WarehouseAreaViewModel(
@@ -124,97 +120,88 @@ class WarehouseAreaService:
         )
 
     async def add(self, view_model: WarehouseAreaCreateViewModel, current_user: CurrentUser) -> Tuple[int, str]:
-        query = select(WarehouseArea).where(
-            WarehouseArea.warehouse_id == view_model.warehouse_id,
-            WarehouseArea.area_name == view_model.area_name,
-            WarehouseArea.tenant_id == current_user.tenant_id
+        existing = await self.get_one_by_tenant(
+            current_user.tenant_id,
+            filters={
+                "warehouse_id": view_model.warehouse_id,
+                "area_name": view_model.area_name
+            }
         )
-        result = await self.db_session.execute(query)
-        existing = result.scalar_one_or_none()
         
         if existing:
             return 0, f"区域名称 '{view_model.area_name}' 已存在"
         
-        warehouse_area = WarehouseArea(
+        warehouse_area = await self.create_with_tenant(
+            current_user.tenant_id,
             warehouse_id=view_model.warehouse_id,
             area_name=view_model.area_name,
             parent_id=view_model.parent_id,
             is_valid=view_model.is_valid,
             area_property=view_model.area_property,
             create_time=int(datetime.now().timestamp()),
-            last_update_time=int(datetime.now().timestamp()),
-            tenant_id=current_user.tenant_id
+            last_update_time=int(datetime.now().timestamp())
         )
-        
-        self.db_session.add(warehouse_area)
-        await self.db_session.commit()
-        await self.db_session.refresh(warehouse_area)
         
         return warehouse_area.id, "保存成功"
 
     async def update(self, id: int, view_model: WarehouseAreaUpdateViewModel, current_user: CurrentUser) -> Tuple[bool, str]:
-        query = select(WarehouseArea).where(WarehouseArea.id == id)
-        result = await self.db_session.execute(query)
-        warehouse_area = result.scalar_one_or_none()
+        warehouse_area = await self._repository.get_by_id(id)
         
         if warehouse_area is None:
             return False, "记录不存在"
         
-        if view_model.warehouse_id is not None:
-            query = select(WarehouseArea).where(
-                WarehouseArea.id != id,
-                WarehouseArea.warehouse_id == view_model.warehouse_id,
-                WarehouseArea.area_name == view_model.area_name,
-                WarehouseArea.tenant_id == current_user.tenant_id
+        if current_user and warehouse_area.tenant_id != current_user.tenant_id:
+            return False, "无权修改此记录"
+        
+        if view_model.warehouse_id is not None and view_model.area_name is not None:
+            existing = await self.get_one_by_tenant(
+                current_user.tenant_id,
+                filters={
+                    "warehouse_id": view_model.warehouse_id,
+                    "area_name": view_model.area_name
+                }
             )
-            result = await self.db_session.execute(query)
-            existing = result.scalar_one_or_none()
             
-            if existing:
+            if existing and existing.id != id:
                 return False, f"区域名称 '{view_model.area_name}' 已存在"
         
+        update_data = {}
         if view_model.area_name is not None:
-            warehouse_area.area_name = view_model.area_name
+            update_data["area_name"] = view_model.area_name
         if view_model.warehouse_id is not None:
-            warehouse_area.warehouse_id = view_model.warehouse_id
+            update_data["warehouse_id"] = view_model.warehouse_id
         if view_model.parent_id is not None:
-            warehouse_area.parent_id = view_model.parent_id
+            update_data["parent_id"] = view_model.parent_id
         if view_model.is_valid is not None:
-            warehouse_area.is_valid = view_model.is_valid
+            update_data["is_valid"] = view_model.is_valid
         if view_model.area_property is not None:
-            warehouse_area.area_property = view_model.area_property
+            update_data["area_property"] = view_model.area_property
         
-        warehouse_area.last_update_time = int(datetime.now().timestamp())
+        update_data["last_update_time"] = int(datetime.now().timestamp())
         
-        gl_query = select(GoodsLocation).where(GoodsLocation.warehouse_area_id == id)
-        gl_result = await self.db_session.execute(gl_query)
-        goods_locations = gl_result.scalars().all()
-        
-        for gl in goods_locations:
-            gl.warehouse_area_name = warehouse_area.area_name
-            gl.warehouse_area_property = warehouse_area.area_property
-            gl.is_valid = warehouse_area.is_valid
-        
-        await self.db_session.commit()
+        await self.update_with_tenant(id, current_user.tenant_id, **update_data)
         
         return True, "保存成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
+    async def delete(self, id: int, current_user: Optional[CurrentUser] = None) -> Tuple[bool, str]:
         query = select(GoodsLocation).where(GoodsLocation.warehouse_area_id == id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         existing = result.scalar_one_or_none()
         
         if existing:
             return False, "存在货位，无法删除"
         
         query = select(WarehouseArea).where(WarehouseArea.id == id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         warehouse_area = result.scalar_one_or_none()
         
         if warehouse_area is None:
             return False, "记录不存在"
         
-        await self.db_session.delete(warehouse_area)
-        await self.db_session.commit()
+        if current_user and warehouse_area.tenant_id != current_user.tenant_id:
+            return False, "无权删除此记录"
+        
+        await self._db_session.delete(warehouse_area)
+        await self._db_session.commit()
         
         return True, "删除成功"

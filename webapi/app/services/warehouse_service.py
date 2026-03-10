@@ -31,7 +31,7 @@ class WarehouseService(TenantAwareService[WarehouseRepository, Warehouse]):
         Returns:
             仓库字典列表
         """
-        warehouses = await self._repository.get_by_tenant(current_user.tenant_id, is_valid=True)
+        warehouses = await self.get_by_tenant(current_user.tenant_id, filters={"is_valid": True})
         
         return [
             {
@@ -96,7 +96,7 @@ class WarehouseService(TenantAwareService[WarehouseRepository, Warehouse]):
         Returns:
             仓库列表
         """
-        warehouses = await self._repository.get_by_tenant(current_user.tenant_id)
+        warehouses = await self.get_by_tenant(current_user.tenant_id)
         
         return [
             WarehouseViewModel(
@@ -116,12 +116,13 @@ class WarehouseService(TenantAwareService[WarehouseRepository, Warehouse]):
             for warehouse in warehouses
         ]
 
-    async def get_by_id(self, id: int) -> Optional[WarehouseViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[WarehouseViewModel]:
         """
         根据ID获取仓库信息
         
         Args:
             id: 仓库ID
+            current_user: 当前登录用户
             
         Returns:
             仓库视图模型，不存在则返回None
@@ -129,6 +130,9 @@ class WarehouseService(TenantAwareService[WarehouseRepository, Warehouse]):
         warehouse = await self._repository.get_by_id(id)
         
         if warehouse is None:
+            return None
+        
+        if current_user and warehouse.tenant_id != current_user.tenant_id:
             return None
         
         return WarehouseViewModel(
@@ -157,15 +161,16 @@ class WarehouseService(TenantAwareService[WarehouseRepository, Warehouse]):
         Returns:
             仓库ID和操作结果消息
         """
-        existing = await self._repository.exists_by_fields({
-            "warehouse_name": view_model.warehouse_name,
-            "tenant_id": current_user.tenant_id
-        })
+        existing = await self.get_one_by_tenant(
+            current_user.tenant_id,
+            filters={"warehouse_name": view_model.warehouse_name}
+        )
         
         if existing:
             return 0, f"仓库名称 '{view_model.warehouse_name}' 已存在"
         
-        warehouse = await self._repository.create(
+        warehouse = await self.create_with_tenant(
+            current_user.tenant_id,
             warehouse_name=view_model.warehouse_name,
             city=view_model.city,
             address=view_model.address,
@@ -175,8 +180,7 @@ class WarehouseService(TenantAwareService[WarehouseRepository, Warehouse]):
             creator=current_user.user_name,
             create_time=int(datetime.now().timestamp()),
             last_update_time=int(datetime.now().timestamp()),
-            is_valid=view_model.is_valid,
-            tenant_id=current_user.tenant_id
+            is_valid=view_model.is_valid
         )
         
         return warehouse.id, ""
@@ -199,12 +203,12 @@ class WarehouseService(TenantAwareService[WarehouseRepository, Warehouse]):
             return 0, "仓库不存在"
         
         if view_model.warehouse_name is not None and view_model.warehouse_name != warehouse.warehouse_name:
-            existing = await self._repository.exists_by_fields({
-                "warehouse_name": view_model.warehouse_name,
-                "tenant_id": warehouse.tenant_id
-            })
+            existing = await self.get_one_by_tenant(
+                warehouse.tenant_id,
+                filters={"warehouse_name": view_model.warehouse_name}
+            )
             
-            if existing:
+            if existing and existing.id != id:
                 return 0, f"仓库名称 '{view_model.warehouse_name}' 已存在"
         
         update_data = {}
@@ -224,20 +228,29 @@ class WarehouseService(TenantAwareService[WarehouseRepository, Warehouse]):
             update_data["is_valid"] = view_model.is_valid
         
         if update_data:
-            await self._repository.update(id, **update_data)
+            await self.update_with_tenant(id, warehouse.tenant_id, **update_data)
         
         return id, ""
 
-    async def delete(self, id: int) -> Tuple[int, str]:
+    async def delete(self, id: int, current_user: Optional[CurrentUser] = None) -> Tuple[int, str]:
         """
         删除仓库
         
         Args:
             id: 仓库ID
+            current_user: 当前登录用户
             
         Returns:
             仓库ID和操作结果消息
         """
+        warehouse = await self._repository.get_by_id(id)
+        
+        if warehouse is None:
+            return 0, "仓库不存在"
+        
+        if current_user and warehouse.tenant_id != current_user.tenant_id:
+            return 0, "无权删除此记录"
+        
         result = await self._repository.delete(id)
         
         if not result:

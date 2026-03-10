@@ -47,6 +47,7 @@ export interface TenantAIConfigCreate {
 }
 
 export interface TenantAIConfigUpdate {
+  id: number
   api_key?: string
   api_endpoint?: string
   is_default?: boolean
@@ -62,7 +63,7 @@ class TenantAIConfigService extends BaseService<TenantAIConfig, TenantAIConfigCr
     super({
       basePath: '/ai/tenant-config',
       usePostForList: false,
-      usePostForDelete: true
+      usePostForDelete: false
     })
   }
 
@@ -71,20 +72,28 @@ class TenantAIConfigService extends BaseService<TenantAIConfig, TenantAIConfigCr
     return http.get('/ai/tenant-config/list', { params: normalizedParams })
   }
 
+  getById(configId: number): Promise<TenantAIConfig> {
+    return http.get('/ai/tenant-config/get', { params: { config_id: configId } })
+  }
+
   getDefault(): Promise<TenantAIConfig> {
     return http.get('/ai/tenant-config/default')
   }
 
   setDefault(configId: number): Promise<TenantAIConfig> {
-    return http.post(`/ai/tenant-config/${configId}/set-default`)
+    return http.post('/ai/tenant-config/set-default', null, { params: { config_id: configId } })
   }
 
-  update(configId: number, data: TenantAIConfigUpdate): Promise<TenantAIConfig> {
-    return http.post(`/ai/tenant-config/${configId}/update`, data)
+  create(data: TenantAIConfigCreate): Promise<TenantAIConfig> {
+    return http.post('/ai/tenant-config/', data)
   }
 
-  delete(configId: number): Promise<{ message: string }> {
-    return http.post(`/ai/tenant-config/${configId}/delete`)
+  update(data: TenantAIConfigUpdate): Promise<TenantAIConfig> {
+    return http.post('/ai/tenant-config/update', data, { params: { config_id: data.id } })
+  }
+
+  delete(id: number): Promise<{ id: number }> {
+    return http.post('/ai/tenant-config/delete', null, { params: { config_id: id } }).then(() => ({ id }))
   }
 }
 
@@ -92,19 +101,19 @@ export const tenantAIConfigService = new TenantAIConfigService()
 
 export const aiConfigService = {
   getProviders: (): Promise<AIProviderInfo[]> => {
-    return http.get('/ai/config/providers')
+    return http.get('/common/ai/config/providers')
   },
 
   getProvider: (providerCode: string): Promise<AIProviderInfo> => {
-    return http.get(`/ai/config/providers/${providerCode}`)
+    return http.get(`/common/ai/config/providers/${providerCode}`)
   },
 
   getProviderModels: (providerCode: string): Promise<AIModelInfo[]> => {
-    return http.get(`/ai/config/providers/${providerCode}/models`)
+    return http.get(`/common/ai/config/providers/${providerCode}/models`)
   },
 
   getProvidersWithModels: (): Promise<AIProviderWithModels[]> => {
-    return http.get('/ai/config/providers-with-models')
+    return http.get('/common/ai/config/providers-with-models')
   }
 }
 

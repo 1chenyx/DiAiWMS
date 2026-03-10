@@ -20,6 +20,14 @@ class StockViewModel(BaseModel):
     expiry_date: int = Field(default=0, description="过期日期")
     price: float = Field(default=0, description="价格")
     putaway_date: int = Field(default=0, description="上架日期")
+    warehouse_id: int = Field(default=0, description="仓库ID")
+    warehouse_name: str = Field(default="", description="仓库名称")
+    warehouse_area_id: int = Field(default=0, description="库区ID")
+    warehouse_area_name: str = Field(default="", description="库区名称")
+    warehouse_location_name: str = Field(default="", description="库位名称")
+    spu_name: str = Field(default="", description="商品名称")
+    sku_code: str = Field(default="", description="SKU编码")
+    sku_name: str = Field(default="", description="SKU名称")
 
 
 class StockCreateViewModel(BaseModel):

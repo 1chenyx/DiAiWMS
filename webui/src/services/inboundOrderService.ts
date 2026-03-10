@@ -9,6 +9,8 @@ export interface InboundOrderItem {
   qty: number
   weight?: number
   volume?: number
+  batch_no?: string
+  production_date?: number
 }
 
 export interface InboundOrderCreate {
@@ -37,6 +39,8 @@ export interface InboundOrderItemViewModel {
   qty: number
   weight?: number
   volume?: number
+  batch_no?: string
+  production_date?: number
 }
 
 export interface InboundOrderViewModel extends BaseEntity {

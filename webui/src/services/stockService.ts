@@ -6,34 +6,37 @@ import { PaginationHelper } from '@/utils/pagination'
 export interface Stock extends BaseEntity {
   id: number
   sku_id: number
-  sku_code?: string
-  sku_name?: string
+  sku_code: string
+  sku_name: string
   goods_location_id: number
+  goods_location_name: string
   location_code?: string
-  warehouse_id?: number
-  warehouse_name?: string
-  goods_owner_id?: number
-  goods_owner_name?: string
   qty: number
   qty_available?: number
   qty_frozen?: number
   is_freeze: boolean
+  goods_owner_id: number
+  goods_owner_name: string
+  warehouse_name?: string
   batch_no?: string
+  expiry_date?: number
+  putaway_date?: number
 }
 
 export interface StockCreate {
   sku_id: number
   goods_location_id: number
-  goods_owner_id?: number
   qty: number
-  batch_no?: string
+  goods_owner_id: number
 }
 
 export interface StockUpdate {
   id: number
+  sku_id?: number
+  goods_location_id?: number
   qty?: number
   is_freeze?: boolean
-  batch_no?: string
+  goods_owner_id?: number
 }
 
 export interface StockPageParams extends PageParams {
@@ -41,6 +44,13 @@ export interface StockPageParams extends PageParams {
   goods_location_id?: number
   is_freeze?: boolean
   goods_owner_id?: number
+}
+
+interface StockPageResponse {
+  data: Stock[]
+  totals: number
+  page_index: number
+  page_size: number
 }
 
 class StockService extends BaseService<Stock, StockCreate, StockUpdate> {
@@ -52,13 +62,17 @@ class StockService extends BaseService<Stock, StockCreate, StockUpdate> {
     })
   }
 
-  getPage(params: StockPageParams): Promise<PageResult<Stock>> {
+  async getPage(params: StockPageParams): Promise<PageResult<Stock>> {
     const normalizedParams = PaginationHelper.normalizeParams(params)
-    return http.get('/stock/page', { params: normalizedParams })
+    const response = await http.get<StockPageResponse>('/stock/page', { params: normalizedParams })
+    return {
+      rows: response.data,
+      totals: response.totals
+    }
   }
 
-  updateQty(id: number, qtyChange: number): Promise<Stock> {
-    return http.post(`/stock/${id}/update-qty`, null, { params: { qty_change: qtyChange } })
+  getAll(): Promise<Stock[]> {
+    return http.get('/stock/list')
   }
 }
 

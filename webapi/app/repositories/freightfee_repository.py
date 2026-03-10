@@ -2,17 +2,17 @@ from typing import List, Optional
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.entities import FreightFee
+from app.models.entities.freightfee import Freightfee
 from app.repositories.base_repository import BaseRepository
 
 
-class FreightFeeRepository(BaseRepository[FreightFee]):
+class FreightFeeRepository(BaseRepository[Freightfee]):
     """
     运费数据访问层
     """
 
     def __init__(self, db_session: AsyncSession):
-        super().__init__(FreightFee, db_session)
+        super().__init__(Freightfee, db_session)
 
     async def search_by_tenant(
         self,
@@ -33,17 +33,32 @@ class FreightFeeRepository(BaseRepository[FreightFee]):
         Returns:
             (运费列表, 总数量)
         """
-        query = select(FreightFee).where(FreightFee.tenant_id == tenant_id)
+        query = select(Freightfee).where(Freightfee.tenant_id == tenant_id)
         
         if search_params:
             if "fee_name" in search_params:
-                query = query.where(FreightFee.fee_name.like(f"%{search_params['fee_name']}%"))
+                query = query.where(Freightfee.fee_name.like(f"%{search_params['fee_name']}%"))
+            if "carrier" in search_params:
+                if isinstance(search_params["carrier"], str) and "%" in search_params["carrier"]:
+                    query = query.where(Freightfee.carrier.like(search_params["carrier"]))
+                else:
+                    query = query.where(Freightfee.carrier == search_params["carrier"])
+            if "departure_city" in search_params:
+                if isinstance(search_params["departure_city"], str) and "%" in search_params["departure_city"]:
+                    query = query.where(Freightfee.departure_city.like(search_params["departure_city"]))
+                else:
+                    query = query.where(Freightfee.departure_city == search_params["departure_city"])
+            if "arrival_city" in search_params:
+                if isinstance(search_params["arrival_city"], str) and "%" in search_params["arrival_city"]:
+                    query = query.where(Freightfee.arrival_city.like(search_params["arrival_city"]))
+                else:
+                    query = query.where(Freightfee.arrival_city == search_params["arrival_city"])
         
         total_query = select(func.count()).select_from(query.subquery())
         total_result = await self._db_session.execute(total_query)
         total = total_result.scalar()
         
-        query = query.order_by(FreightFee.create_time.desc())
+        query = query.order_by(Freightfee.create_time.desc())
         query = query.offset((page_index - 1) * page_size).limit(page_size)
         
         result = await self._db_session.execute(query)

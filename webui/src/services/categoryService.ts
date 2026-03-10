@@ -1,45 +1,48 @@
 import { BaseService } from './baseService'
 import { http } from './api'
-import type { BaseEntity } from '@/types/common'
+import type { BaseEntity, PageParams, PageResult } from '@/types/common'
+import { PaginationHelper } from '@/utils/pagination'
 
 export interface Category extends BaseEntity {
   id: number
+  parent_id: number
   category_name: string
   category_code: string
-  parent_id?: number
-  level?: number
-  sort_order?: number
   is_valid: boolean
+  sort_order?: number
 }
 
 export interface CategoryCreate {
+  parent_id?: number
   category_name: string
   category_code: string
-  parent_id?: number
   sort_order?: number
-  is_valid?: boolean
 }
 
 export interface CategoryUpdate {
   id: number
+  parent_id?: number
+  category_name?: string
+  category_code?: string
+  is_valid?: boolean
+  sort_order?: number
+}
+
+export interface CategoryPageParams extends PageParams {
   category_name?: string
   category_code?: string
   parent_id?: number
-  sort_order?: number
   is_valid?: boolean
 }
 
 export interface CategoryTreeNode {
   id: number
+  parent_id: number
   category_name: string
   category_code: string
-  parent_id?: number
-  level?: number
-  sort_order?: number
   is_valid: boolean
-  create_time?: string
-  update_time?: string
-  children: CategoryTreeNode[]
+  sort_order?: number
+  children?: CategoryTreeNode[]
 }
 
 class CategoryService extends BaseService<Category, CategoryCreate, CategoryUpdate> {
@@ -51,8 +54,17 @@ class CategoryService extends BaseService<Category, CategoryCreate, CategoryUpda
     })
   }
 
+  getPage(params: CategoryPageParams): Promise<PageResult<Category>> {
+    const normalizedParams = PaginationHelper.normalizeParams(params)
+    return http.get('/category/page', { params: normalizedParams })
+  }
+
   getTree(): Promise<CategoryTreeNode[]> {
     return http.get('/category/tree')
+  }
+
+  getAll(): Promise<Category[]> {
+    return http.get('/category/list')
   }
 }
 

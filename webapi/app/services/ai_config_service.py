@@ -99,7 +99,7 @@ class TenantAIConfigService:
         tenant_id: str,
         provider_code: Optional[str] = None,
         is_default: Optional[bool] = None,
-        page: int = 1,
+        page_index: int = 1,
         page_size: int = 20
     ) -> Dict[str, Any]:
         """
@@ -109,7 +109,7 @@ class TenantAIConfigService:
             tenant_id: 租户ID
             provider_code: 提供商代码
             is_default: 是否默认配置
-            page: 页码
+            page_index: 页码
             page_size: 每页数量
             
         Returns:
@@ -133,7 +133,7 @@ class TenantAIConfigService:
         )
         total = len(total_result.scalars().all())
         
-        offset = (page - 1) * page_size
+        offset = (page_index - 1) * page_size
         query = query.offset(offset).limit(page_size)
         
         result = await self.db.execute(query)
@@ -145,10 +145,8 @@ class TenantAIConfigService:
             view_models.append(view_model)
         
         return {
-            'total': total,
-            'page': page,
-            'page_size': page_size,
-            'items': view_models
+            'rows': view_models,
+            'totals': total
         }
     
     async def get_default(self, tenant_id: str) -> Optional[TenantAIConfigViewModel]:

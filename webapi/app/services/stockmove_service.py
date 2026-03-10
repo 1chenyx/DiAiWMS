@@ -7,11 +7,15 @@ from app.models.entities.sku import Sku
 from app.models.entities.goods_location import GoodsLocation
 from app.schemas.stockmove import StockmoveCreate, StockmoveUpdate, StockmoveViewModel
 from app.core.current_user import CurrentUser
+from app.repositories.stockmove_repository import StockmoveRepository
+from app.services.base_service import TenantAwareService
 
 
-class StockmoveService:
+class StockmoveService(TenantAwareService[StockmoveRepository, Stockmove]):
     def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+        repository = StockmoveRepository(db_session)
+        super().__init__(repository)
+        self._db_session = db_session
 
     async def search(
         self,
@@ -28,13 +32,13 @@ class StockmoveService:
             query = query.where(Stockmove.job_code.like(f'%{job_code}%'))
 
         total_query = select(Stockmove.id).where(query.whereclause)
-        total_result = await self.db_session.execute(total_query)
+        total_result = await self._db_session.execute(total_query)
         totals = len(total_result.scalars().all())
 
         query = query.order_by(Stockmove.create_time.desc())
         query = query.offset((page_index - 1) * page_size).limit(page_size)
 
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         entities = result.scalars().all()
 
         data = [
@@ -71,7 +75,7 @@ class StockmoveService:
         query = query.join(GoodsLocation, Stockmove.orig_goods_location_id == GoodsLocation.id)
         query = query.where(Stockmove.id == id)
 
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         entity = result.scalar_one_or_none()
 
         if entity is None:
@@ -102,7 +106,8 @@ class StockmoveService:
         )
 
     async def create(self, data: StockmoveCreate, current_user: CurrentUser) -> Tuple[int, str]:
-        entity = Stockmove(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id,
             job_code=data.job_code,
             move_status=0,
             sku_id=data.sku_id,
@@ -115,54 +120,48 @@ class StockmoveService:
             creator=current_user.user_name,
             create_time=int(datetime.now().timestamp()),
             last_update_time=int(datetime.now().timestamp()),
-            tenant_id=current_user.tenant_id,
             series_number=data.series_number,
             expiry_date=data.expiry_date,
             price=data.price,
             putaway_date=data.putaway_date
         )
 
-        self.db_session.add(entity)
-        await self.db_session.commit()
-
         if entity.id > 0:
             return entity.id, "保存成功"
         else:
             return 0, "保存失败"
 
-    async def update(self, data: StockmoveUpdate) -> Tuple[bool, str]:
-        query = select(Stockmove).where(Stockmove.id == data.id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def update(self, data: StockmoveUpdate, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(data.id)
 
         if entity is None:
             return False, "记录不存在"
 
-        entity.job_code = data.job_code
-        entity.sku_id = data.sku_id
-        entity.orig_goods_location_id = data.orig_goods_location_id
-        entity.dest_googs_location_id = data.dest_googs_location_id
-        entity.qty = data.qty
-        entity.goods_owner_id = data.goods_owner_id
-        entity.series_number = data.series_number
-        entity.expiry_date = data.expiry_date
-        entity.price = data.price
-        entity.putaway_date = data.putaway_date
-        entity.last_update_time = int(datetime.now().timestamp())
-
-        await self.db_session.commit()
+        await self.update_with_tenant(
+            data.id,
+            entity.tenant_id,
+            job_code=data.job_code,
+            sku_id=data.sku_id,
+            orig_goods_location_id=data.orig_goods_location_id,
+            dest_googs_location_id=data.dest_googs_location_id,
+            qty=data.qty,
+            goods_owner_id=data.goods_owner_id,
+            series_number=data.series_number,
+            expiry_date=data.expiry_date,
+            price=data.price,
+            putaway_date=data.putaway_date,
+            last_update_time=int(datetime.now().timestamp())
+        )
 
         return True, "保存成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
-        query = select(Stockmove).where(Stockmove.id == id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def delete(self, id: int, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(id)
 
         if entity is None:
             return False, "记录不存在"
 
-        await self.db_session.delete(entity)
-        await self.db_session.commit()
+        await self._db_session.delete(entity)
+        await self._db_session.commit()
 
         return True, "删除成功"

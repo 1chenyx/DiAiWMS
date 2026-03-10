@@ -30,11 +30,11 @@ export interface RefreshTokenOutput {
 
 export const authService = {
   login: (data: LoginInput): Promise<LoginOutput> => {
-    return http.post('/login', data)
+    return http.post('/common/login', data)
   },
   
   refreshToken: (data: RefreshTokenInput): Promise<RefreshTokenOutput> => {
-    return http.post('/refresh-token', data)
+    return http.post('/common/refresh-token', data)
   }
 }
 

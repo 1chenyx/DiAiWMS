@@ -29,8 +29,12 @@ class UserService(TenantAwareService[UserRepository, User]):
         user_name: Optional[str] = None,
         current_user: Optional[CurrentUser] = None
     ) -> Tuple[List[UserViewModel], int]:
+        search_params = {}
+        if user_name:
+            search_params["user_name"] = user_name
+        
         entities, totals = await self._repository.search_by_tenant(
-            page_index, page_size, current_user.tenant_id, user_name
+            page_index, page_size, current_user.tenant_id, search_params
         )
 
         data = [
@@ -75,12 +79,12 @@ class UserService(TenantAwareService[UserRepository, User]):
     async def create(self, data: UserCreateViewModel, current_user: CurrentUser) -> Tuple[int, str]:
         md5_password = md5_encrypt_32(data.password)
         
-        entity = await self._repository.create(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id,
             user_num=data.user_num,
             user_name=data.user_name,
             user_role=data.user_role,
             auth_string=md5_password,
-            tenant_id=current_user.tenant_id,
             is_valid=True,
             create_time=int(datetime.now().timestamp()),
             last_update_time=int(datetime.now().timestamp())
@@ -108,7 +112,7 @@ class UserService(TenantAwareService[UserRepository, User]):
         if data.password:
             update_data["auth_string"] = md5_encrypt_32(data.password)
 
-        await self._repository.update(data.id, **update_data)
+        await self.update_with_tenant(data.id, entity.tenant_id, **update_data)
 
         return True, "保存成功"
 

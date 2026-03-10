@@ -164,7 +164,7 @@ const fetchGoodsOwnerList = async () => {
       page_size: pagination.page_size,
       goods_owner_name: searchForm.goods_owner_name || undefined
     })
-    goodsOwnerList.value = result.rows
+    goodsOwnerList.value = result.rows || []
     pagination.total = result.totals
   } catch (error: any) {
     ElMessage.error(error.message || '获取货主列表失败')
@@ -212,7 +212,7 @@ const handleEdit = (row: GoodsOwner) => {
   dialogTitle.value = '编辑货主'
   formData.id = row.id
   formData.goods_owner_name = row.goods_owner_name
-  formData.goods_owner_code = row.goods_owner_code
+  formData.goods_owner_code = row.goods_owner_code || ''
   formData.contact = row.contact || ''
   formData.phone = row.phone || ''
   formData.email = row.email || ''
@@ -264,12 +264,11 @@ const handleSubmit = async () => {
       await goodsOwnerService.create({
         goods_owner_name: formData.goods_owner_name,
         goods_owner_code: formData.goods_owner_code,
-        contact: formData.contact,
-        phone: formData.phone,
+        contact_person: formData.contact,
+        contact_tel: formData.phone,
         email: formData.email,
         address: formData.address,
-        description: formData.description,
-        is_valid: formData.is_valid
+        description: formData.description
       })
       ElMessage.success('创建成功')
     }

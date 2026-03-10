@@ -16,7 +16,7 @@ class InboundPickPutawayItemCreate(BaseModel):
 
 
 class InboundPickPutawayCreate(BaseModel):
-    order_id: int = Field(..., description='入库订单ID')
+    inbound_order_ids: List[int] = Field(..., min_items=1, description='入库订单ID列表')
     remark: Optional[str] = Field(None, max_length=512, description='备注')
 
 
@@ -34,6 +34,14 @@ class InboundPickPutawayItemUpdate(BaseModel):
     putaway_person_id: int = Field(..., description='上架人ID')
     putaway_person: str = Field(..., max_length=64, description='上架人')
     putaway_time: int = Field(..., description='上架时间')
+    warehouse_id: int = Field(..., gt=0, description='仓库ID')
+    warehouse_area_id: int = Field(..., gt=0, description='库区ID')
+    goods_location_id: int = Field(..., gt=0, description='库位ID')
+
+
+class InboundPickPutawayItemSelectLocation(BaseModel):
+    id: int = Field(..., description='拣货上架单明细ID')
+    goods_location_id: int = Field(..., gt=0, description='上架库位ID')
 
 
 class InboundPickPutawayViewModel(BaseModel):
@@ -80,6 +88,8 @@ class InboundPickPutawayItemViewModel(BaseModel):
     volume: float
     price: float
     expiry_date: int
+    batch_no: str
+    production_date: int
     goods_location_id: int
     goods_location_code: Optional[str] = None
     putaway_person_id: int

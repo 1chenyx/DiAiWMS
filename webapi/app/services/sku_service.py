@@ -6,10 +6,10 @@ from app.models.entities import Sku, Spu, Stock
 from app.schemas.sku import SkuViewModel, SkuCreateViewModel, SkuUpdateViewModel
 from app.core.current_user import CurrentUser
 from app.repositories.sku_repository import SkuRepository
-from app.services.base_service import BaseService
+from app.services.base_service import TenantAwareService
 
 
-class SkuService(BaseService[SkuRepository, Sku]):
+class SkuService(TenantAwareService[SkuRepository, Sku]):
     """
     SKU服务类
     
@@ -42,6 +42,9 @@ class SkuService(BaseService[SkuRepository, Sku]):
         query = select(Sku, Spu).join(
             Spu, Sku.spu_id == Spu.id
         )
+        
+        if current_user:
+            query = query.where(Sku.tenant_id == current_user.tenant_id)
         
         if search_params:
             if "sku_code" in search_params:
@@ -78,6 +81,7 @@ class SkuService(BaseService[SkuRepository, Sku]):
         data = [
             SkuViewModel(
                 id=sku.id,
+                tenant_id=sku.tenant_id,
                 spu_id=sku.spu_id,
                 sku_code=sku.sku_code,
                 sku_name=sku.sku_name,
@@ -99,16 +103,20 @@ class SkuService(BaseService[SkuRepository, Sku]):
         
         return data, totals
 
-    async def get_all(self, spu_id: int = 0) -> List[SkuViewModel]:
+    async def get_all(self, spu_id: int = 0, current_user: Optional[CurrentUser] = None) -> List[SkuViewModel]:
         filters = {}
         if spu_id > 0:
             filters["spu_id"] = spu_id
+        
+        if current_user:
+            filters["tenant_id"] = current_user.tenant_id
         
         skus = await self._repository.get_all(filters=filters)
         
         return [
             SkuViewModel(
                 id=sku.id,
+                tenant_id=sku.tenant_id,
                 spu_id=sku.spu_id,
                 sku_code=sku.sku_code,
                 sku_name=sku.sku_name,
@@ -127,10 +135,13 @@ class SkuService(BaseService[SkuRepository, Sku]):
             for sku in skus
         ]
 
-    async def get_by_id(self, id: int) -> Optional[SkuViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[SkuViewModel]:
         sku = await self._repository.get_by_id(id)
         
         if sku is None:
+            return None
+        
+        if current_user and sku.tenant_id != current_user.tenant_id:
             return None
         
         stock_query = select(
@@ -144,6 +155,7 @@ class SkuService(BaseService[SkuRepository, Sku]):
         
         return SkuViewModel(
             id=sku.id,
+            tenant_id=sku.tenant_id,
             spu_id=sku.spu_id,
             sku_code=sku.sku_code,
             sku_name=sku.sku_name,
@@ -161,15 +173,17 @@ class SkuService(BaseService[SkuRepository, Sku]):
             available_quantity=available_quantity
         )
 
-    async def add(self, view_model: SkuCreateViewModel) -> Tuple[int, str]:
-        existing = await self._repository.exists_by_fields({
-            "sku_code": view_model.sku_code
-        })
+    async def add(self, view_model: SkuCreateViewModel, current_user: CurrentUser) -> Tuple[int, str]:
+        existing = await self.get_one_by_tenant(
+            current_user.tenant_id,
+            filters={"sku_code": view_model.sku_code}
+        )
         
         if existing:
             return 0, f"SKU编码 '{view_model.sku_code}' 已存在"
         
-        sku = await self._repository.create(
+        sku = await self.create_with_tenant(
+            current_user.tenant_id,
             spu_id=view_model.spu_id,
             sku_code=view_model.sku_code,
             sku_name=view_model.sku_name,
@@ -188,18 +202,19 @@ class SkuService(BaseService[SkuRepository, Sku]):
         
         return sku.id, "保存成功"
 
-    async def update(self, id: int, view_model: SkuUpdateViewModel) -> Tuple[bool, str]:
+    async def update(self, id: int, view_model: SkuUpdateViewModel, current_user: CurrentUser) -> Tuple[bool, str]:
         sku = await self._repository.get_by_id(id)
         
         if sku is None:
             return False, "记录不存在"
         
         if view_model.sku_code is not None:
-            existing = await self._repository.exists_by_fields({
-                "sku_code": view_model.sku_code
-            }, exclude_id=id)
+            existing = await self.get_one_by_tenant(
+                current_user.tenant_id,
+                filters={"sku_code": view_model.sku_code}
+            )
             
-            if existing:
+            if existing and existing.id != id:
                 return False, f"SKU编码 '{view_model.sku_code}' 已存在"
         
         update_data = {}
@@ -231,15 +246,18 @@ class SkuService(BaseService[SkuRepository, Sku]):
         update_data["last_update_time"] = int(datetime.now().timestamp())
         
         if update_data:
-            await self._repository.update(id, **update_data)
+            await self.update_with_tenant(id, current_user.tenant_id, **update_data)
         
         return True, "保存成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
+    async def delete(self, id: int, current_user: Optional[CurrentUser] = None) -> Tuple[bool, str]:
         sku = await self._repository.get_by_id(id)
         
         if sku is None:
             return False, "记录不存在"
+        
+        if current_user and sku.tenant_id != current_user.tenant_id:
+            return False, "无权删除此记录"
         
         result = await self._repository.delete(id)
         

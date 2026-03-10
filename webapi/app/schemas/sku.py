@@ -9,6 +9,7 @@ class SkuViewModel(BaseModel):
     用于SKU信息的展示和返回
     """
     id: int = Field(default=0, description="主键ID")
+    tenant_id: str = Field(default="", description="租户ID")
     spu_id: int = Field(default=0, description="SPU ID")
     sku_code: str = Field(default="", max_length=50, description="SKU编码")
     sku_name: str = Field(default="", max_length=100, description="SKU名称")

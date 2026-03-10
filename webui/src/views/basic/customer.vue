@@ -164,7 +164,7 @@ const fetchCustomerList = async () => {
       page_size: pagination.page_size,
       customer_name: searchForm.customer_name || undefined
     })
-    customerList.value = result.rows
+    customerList.value = result.rows || []
     pagination.total = result.totals
   } catch (error: any) {
     ElMessage.error(error.message || '获取客户列表失败')
@@ -212,7 +212,7 @@ const handleEdit = (row: Customer) => {
   dialogTitle.value = '编辑客户'
   formData.id = row.id
   formData.customer_name = row.customer_name
-  formData.customer_code = row.customer_code
+  formData.customer_code = row.customer_code || ''
   formData.contact = row.contact || ''
   formData.phone = row.phone || ''
   formData.email = row.email || ''
@@ -264,12 +264,11 @@ const handleSubmit = async () => {
       await customerService.create({
         customer_name: formData.customer_name,
         customer_code: formData.customer_code,
-        contact: formData.contact,
-        phone: formData.phone,
+        contact_person: formData.contact,
+        contact_tel: formData.phone,
         email: formData.email,
         address: formData.address,
-        description: formData.description,
-        is_valid: formData.is_valid
+        description: formData.description
       })
       ElMessage.success('创建成功')
     }

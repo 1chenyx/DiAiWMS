@@ -18,11 +18,15 @@ from app.schemas.inbound_receipt import (
     InboundReceiptItemViewModel
 )
 from app.core.current_user import CurrentUser
+from app.repositories.inbound_receipt_repository import InboundReceiptRepository
+from app.services.base_service import TenantAwareService
 
 
-class InboundReceiptService:
+class InboundReceiptService(TenantAwareService[InboundReceiptRepository, InboundReceipt]):
     def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+        repository = InboundReceiptRepository(db_session)
+        super().__init__(repository)
+        self._db_session = db_session
 
     async def search(
         self,
@@ -33,35 +37,27 @@ class InboundReceiptService:
         order_no: Optional[str] = None,
         current_user: Optional[CurrentUser] = None
     ) -> Tuple[List[InboundReceiptViewModel], int]:
-        query = select(InboundReceipt)
-        if current_user and current_user.is_authenticated:
-            query = query.where(InboundReceipt.tenant_id == current_user.tenant_id)
-
+        filters = {}
         if receipt_no:
-            query = query.where(InboundReceipt.receipt_no.like(f'%{receipt_no}%'))
-
+            filters["receipt_no"] = f"%{receipt_no}%"
         if receipt_status is not None:
-            query = query.where(InboundReceipt.receipt_status == receipt_status)
-
+            filters["receipt_status"] = receipt_status
         if order_no:
-            query = query.where(InboundReceipt.order_no.like(f'%{order_no}%'))
-
-        total_query = select(func.count(InboundReceipt.id)).where(query.whereclause)
-        total_result = await self.db_session.execute(total_query)
-        totals = total_result.scalar() or 0
-
-        query = query.order_by(InboundReceipt.create_time.desc())
-        query = query.offset((page_index - 1) * page_size).limit(page_size)
-
-        result = await self.db_session.execute(query)
-        entities = result.scalars().all()
+            filters["order_no"] = f"%{order_no}%"
+        
+        entities, totals = await self.page_query_by_tenant(
+            page_index=page_index,
+            page_size=page_size,
+            tenant_id=current_user.tenant_id if current_user else "",
+            filters=filters
+        )
 
         data = []
         for entity in entities:
             warehouse_name = None
             if entity.warehouse_id > 0:
                 warehouse_query = select(WarehouseLocation).where(WarehouseLocation.id == entity.warehouse_id)
-                warehouse_result = await self.db_session.execute(warehouse_query)
+                warehouse_result = await self._db_session.execute(warehouse_query)
                 warehouse = warehouse_result.scalar_one_or_none()
                 warehouse_name = warehouse.node_name if warehouse else None
 
@@ -100,18 +96,21 @@ class InboundReceiptService:
 
         return data, totals
 
-    async def get_by_id(self, id: int) -> Optional[InboundReceiptViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[InboundReceiptViewModel]:
         query = select(InboundReceipt).where(InboundReceipt.id == id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         entity = result.scalar_one_or_none()
 
         if entity is None:
             return None
 
+        if current_user and entity.tenant_id != current_user.tenant_id:
+            return None
+
         warehouse_name = None
         if entity.warehouse_id > 0:
             warehouse_query = select(WarehouseLocation).where(WarehouseLocation.id == entity.warehouse_id)
-            warehouse_result = await self.db_session.execute(warehouse_query)
+            warehouse_result = await self._db_session.execute(warehouse_query)
             warehouse = warehouse_result.scalar_one_or_none()
             warehouse_name = warehouse.node_name if warehouse else None
 
@@ -154,7 +153,7 @@ class InboundReceiptService:
         query = select(InboundReceiptItem, Sku, Spu).join(Sku, InboundReceiptItem.sku_id == Sku.id)
         query = query.join(Spu, Sku.spu_id == Spu.id)
         query = query.where(InboundReceiptItem.receipt_id == receipt_id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         rows = result.all()
 
         items = []
@@ -163,7 +162,7 @@ class InboundReceiptService:
             goods_location_code = None
             if entity.goods_location_id > 0:
                 location_query = select(WarehouseLocation).where(WarehouseLocation.id == entity.goods_location_id)
-                location_result = await self.db_session.execute(location_query)
+                location_result = await self._db_session.execute(location_query)
                 location = location_result.scalar_one_or_none()
                 goods_location_code = location.location_code if location else None
 
@@ -194,8 +193,8 @@ class InboundReceiptService:
         return items
 
     async def create(self, data: InboundReceiptCreate, current_user: CurrentUser) -> Tuple[int, str]:
-        query = select(InboundPickPutaway).where(InboundPickPutaway.id == data.pick_putaway_id)
-        result = await self.db_session.execute(query)
+        query = select(InboundPickPutaway).where(InboundPickPutaway.id == data.inbound_pick_putaway_id)
+        result = await self._db_session.execute(query)
         pick_putaway = result.scalar_one_or_none()
 
         if pick_putaway is None:
@@ -205,14 +204,14 @@ class InboundReceiptService:
             return 0, "上架单状态不正确，必须完成上架才能生成入库单"
 
         query = select(InboundOrder).where(InboundOrder.id == pick_putaway.order_id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         order = result.scalar_one_or_none()
 
         if order is None:
             return 0, "入库订单不存在"
 
-        query = select(InboundPickPutawayItem).where(InboundPickPutawayItem.pick_putaway_id == data.pick_putaway_id)
-        result = await self.db_session.execute(query)
+        query = select(InboundPickPutawayItem).where(InboundPickPutawayItem.pick_putaway_id == data.inbound_pick_putaway_id)
+        result = await self._db_session.execute(query)
         pick_putaway_items = result.scalars().all()
 
         if not pick_putaway_items:
@@ -225,10 +224,11 @@ class InboundReceiptService:
         total_actual_weight = 0
         total_actual_volume = 0
 
-        entity = InboundReceipt(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id,
             receipt_no=receipt_no,
             receipt_status=0,
-            pick_putaway_id=data.pick_putaway_id,
+            pick_putaway_id=data.inbound_pick_putaway_id,
             order_id=order.id,
             order_no=order.order_no,
             supplier_id=pick_putaway.supplier_id,
@@ -251,19 +251,19 @@ class InboundReceiptService:
             remark=data.remark,
             creator=current_user.user_name,
             create_time=int(datetime.now().timestamp()),
-            last_update_time=int(datetime.now().timestamp()),
-            tenant_id=current_user.tenant_id
+            last_update_time=int(datetime.now().timestamp())
         )
-
-        self.db_session.add(entity)
-        await self.db_session.flush()
 
         for pick_item in pick_putaway_items:
             item_entity = InboundReceiptItem(
                 receipt_id=entity.id,
                 pick_putaway_item_id=pick_item.id,
                 spu_id=pick_item.spu_id,
+                spu_code=pick_item.spu_code,
+                spu_name=pick_item.spu_name,
                 sku_id=pick_item.sku_id,
+                sku_code=pick_item.sku_code,
+                sku_name=pick_item.sku_name,
                 qty=pick_item.qty,
                 actual_qty=pick_item.putaway_qty,
                 weight=pick_item.weight,
@@ -272,11 +272,18 @@ class InboundReceiptService:
                 actual_volume=pick_item.volume,
                 price=pick_item.price,
                 expiry_date=pick_item.expiry_date,
+                batch_no=pick_item.batch_no or '',
+                production_date=pick_item.production_date or 0,
                 goods_location_id=pick_item.goods_location_id,
+                warehouse_id=pick_item.warehouse_id,
+                warehouse_name=pick_item.warehouse_name,
+                warehouse_area_id=pick_item.warehouse_area_id,
+                warehouse_area_name=pick_item.warehouse_area_name,
+                warehouse_location_name=pick_item.warehouse_location_name,
                 series_number=pick_item.series_number,
                 tenant_id=current_user.tenant_id
             )
-            self.db_session.add(item_entity)
+            self._db_session.add(item_entity)
             total_actual_qty += pick_item.putaway_qty
             total_actual_weight += float(pick_item.weight)
             total_actual_volume += float(pick_item.volume)
@@ -288,17 +295,15 @@ class InboundReceiptService:
         pick_putaway.pick_putaway_status = 3
         pick_putaway.last_update_time = int(datetime.now().timestamp())
 
-        await self.db_session.commit()
+        await self._db_session.commit()
 
         if entity.id > 0:
             return entity.id, "保存成功"
         else:
             return 0, "保存失败"
 
-    async def update(self, data: InboundReceiptUpdate) -> Tuple[bool, str]:
-        query = select(InboundReceipt).where(InboundReceipt.id == data.id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def update(self, data: InboundReceiptUpdate, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(data.id, current_user)
 
         if entity is None:
             return False, "记录不存在"
@@ -306,27 +311,26 @@ class InboundReceiptService:
         if entity.receipt_status == 1:
             return False, "已入库，无法修改"
 
+        update_data = {}
         if data.arrival_time is not None:
-            entity.arrival_time = data.arrival_time
+            update_data["arrival_time"] = data.arrival_time
         if data.unload_time is not None:
-            entity.unload_time = data.unload_time
+            update_data["unload_time"] = data.unload_time
         if data.unload_person_id is not None:
-            entity.unload_person_id = data.unload_person_id
+            update_data["unload_person_id"] = data.unload_person_id
         if data.unload_person is not None:
-            entity.unload_person = data.unload_person
+            update_data["unload_person"] = data.unload_person
         if data.remark is not None:
-            entity.remark = data.remark
-
-        entity.last_update_time = int(datetime.now().timestamp())
-
-        await self.db_session.commit()
+            update_data["remark"] = data.remark
+        
+        update_data["last_update_time"] = int(datetime.now().timestamp())
+        
+        await self.update_with_tenant(data.id, current_user.tenant_id, **update_data)
 
         return True, "保存成功"
 
-    async def complete_inbound(self, id: int, inbound_person: str) -> Tuple[bool, str]:
-        query = select(InboundReceipt).where(InboundReceipt.id == id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def complete_inbound(self, id: int, inbound_person: str, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(id, current_user)
 
         if entity is None:
             return False, "记录不存在"
@@ -334,8 +338,11 @@ class InboundReceiptService:
         if entity.receipt_status != 0:
             return False, "入库单状态不正确"
 
+        if not entity.tenant_id:
+            return False, "入库单租户ID为空"
+
         query = select(InboundReceiptItem).where(InboundReceiptItem.receipt_id == id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         receipt_items = result.scalars().all()
 
         for receipt_item in receipt_items:
@@ -344,41 +351,72 @@ class InboundReceiptService:
                 Stock.goods_location_id == receipt_item.goods_location_id,
                 Stock.tenant_id == entity.tenant_id
             )
-            result = await self.db_session.execute(query)
+            result = await self._db_session.execute(query)
             stock = result.scalar_one_or_none()
+
+            sku_query = select(Sku).where(Sku.id == receipt_item.sku_id)
+            sku_result = await self._db_session.execute(sku_query)
+            sku = sku_result.scalar_one_or_none()
+            
+            spu_name = ""
+            sku_code = ""
+            sku_name = ""
+            
+            if sku:
+                sku_code = sku.sku_code
+                sku_name = sku.sku_name
+                
+                spu_query = select(Spu).where(Spu.id == sku.spu_id)
+                spu_result = await self._db_session.execute(spu_query)
+                spu = spu_result.scalar_one_or_none()
+                
+                if spu:
+                    spu_name = spu.spu_name
 
             if stock is None:
                 stock = Stock(
                     sku_id=receipt_item.sku_id,
                     goods_location_id=receipt_item.goods_location_id,
                     qty=receipt_item.actual_qty,
-                    goods_owner_id=0,
+                    goods_owner_id=entity.goods_owner_id,
                     tenant_id=entity.tenant_id,
                     is_freeze=False,
                     series_number=receipt_item.series_number,
                     expiry_date=receipt_item.expiry_date,
                     price=float(receipt_item.price),
                     putaway_date=int(datetime.now().timestamp()),
-                    last_update_time=int(datetime.now().timestamp())
+                    last_update_time=int(datetime.now().timestamp()),
+                    warehouse_id=receipt_item.warehouse_id,
+                    warehouse_name=receipt_item.warehouse_name,
+                    warehouse_area_id=receipt_item.warehouse_area_id,
+                    warehouse_area_name=receipt_item.warehouse_area_name,
+                    warehouse_location_name=receipt_item.warehouse_location_name,
+                    spu_name=spu_name,
+                    sku_code=sku_code,
+                    sku_name=sku_name,
+                    batch_no=receipt_item.batch_no or '',
+                    production_date=receipt_item.production_date or 0
                 )
-                self.db_session.add(stock)
+                self._db_session.add(stock)
             else:
                 stock.qty += receipt_item.actual_qty
                 stock.last_update_time = int(datetime.now().timestamp())
 
-        entity.receipt_status = 1
-        entity.inbound_time = int(datetime.now().timestamp())
-        entity.inbound_person = inbound_person
-        entity.last_update_time = int(datetime.now().timestamp())
+        await self.update_with_tenant(
+            id,
+            entity.tenant_id,
+            receipt_status=1,
+            inbound_time=int(datetime.now().timestamp()),
+            inbound_person=inbound_person,
+            last_update_time=int(datetime.now().timestamp())
+        )
 
-        await self.db_session.commit()
+        await self._db_session.commit()
 
         return True, "入库成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
-        query = select(InboundReceipt).where(InboundReceipt.id == id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def delete(self, id: int, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(id, current_user)
 
         if entity is None:
             return False, "记录不存在"
@@ -387,14 +425,14 @@ class InboundReceiptService:
             return False, "已入库，无法删除"
 
         query = select(InboundPickPutaway).where(InboundPickPutaway.id == entity.pick_putaway_id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         pick_putaway = result.scalar_one_or_none()
 
         if pick_putaway:
             pick_putaway.pick_putaway_status = 2
             pick_putaway.last_update_time = int(datetime.now().timestamp())
 
-        await self.db_session.delete(entity)
-        await self.db_session.commit()
+        await self._db_session.delete(entity)
+        await self._db_session.commit()
 
         return True, "删除成功"

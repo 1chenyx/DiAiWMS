@@ -77,7 +77,7 @@
               </template>
               
               <template v-if="selectedNode.node_type === 2">
-                <el-descriptions-item label="区域属性">{{ getAreaPropertyText(selectedNode.area_property) }}</el-descriptions-item>
+                <el-descriptions-item label="区域属性">{{ getAreaPropertyText(selectedNode.area_property || 0) }}</el-descriptions-item>
               </template>
               
               <template v-if="selectedNode.node_type === 3">
@@ -92,8 +92,8 @@
                 <el-descriptions-item label="标签号" :span="2">{{ selectedNode.tag_number }}</el-descriptions-item>
               </template>
               
-              <el-descriptions-item label="创建时间">{{ formatTime(selectedNode.create_time) }}</el-descriptions-item>
-              <el-descriptions-item label="更新时间">{{ formatTime(selectedNode.last_update_time) }}</el-descriptions-item>
+              <el-descriptions-item label="创建时间">{{ formatTimestamp(selectedNode.create_time) }}</el-descriptions-item>
+              <el-descriptions-item label="更新时间">{{ formatTimestamp(selectedNode.update_time) }}</el-descriptions-item>
             </el-descriptions>
           </el-card>
           
@@ -212,8 +212,8 @@ import { Plus, Edit, Delete, OfficeBuilding, Grid, Location } from '@element-plu
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { warehouseLocationService, type WarehouseLocation, type WarehouseLocationCreate, type WarehouseLocationUpdate, type WarehouseLocationTreeNode } from '@/services/warehouseLocationService'
+import { formatTimestamp } from '@/utils/format'
 
-const treeRef = ref()
 const treeLoading = ref(false)
 const treeData = ref<WarehouseLocationTreeNode[]>([])
 const selectedNode = ref<WarehouseLocation | null>(null)
@@ -232,6 +232,7 @@ const formData = reactive<WarehouseLocationCreate>({
   node_type: 1,
   parent_id: 0,
   node_name: '',
+  node_code: '',
   city: '',
   address: '',
   email: '',
@@ -287,12 +288,6 @@ const getAreaPropertyText = (property: number): string => {
     5: '退货区'
   }
   return propertyMap[property] || '未知'
-}
-
-const formatTime = (timestamp: number): string => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp * 1000)
-  return date.toLocaleString('zh-CN')
 }
 
 const fetchTreeData = async () => {
@@ -442,6 +437,7 @@ const resetForm = () => {
     node_type: 1,
     parent_id: 0,
     node_name: '',
+    node_code: '',
     city: '',
     address: '',
     email: '',

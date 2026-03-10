@@ -5,11 +5,15 @@ from sqlalchemy import select
 from app.models.entities.freightfee import Freightfee
 from app.schemas.freightfee import FreightfeeCreate, FreightfeeUpdate, FreightfeeViewModel
 from app.core.current_user import CurrentUser
+from app.repositories.freightfee_repository import FreightFeeRepository
+from app.services.base_service import TenantAwareService
 
 
-class FreightfeeService:
+class FreightfeeService(TenantAwareService[FreightFeeRepository, Freightfee]):
     def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+        repository = FreightFeeRepository(db_session)
+        super().__init__(repository)
+        self._db_session = db_session
 
     async def search(
         self,
@@ -20,27 +24,22 @@ class FreightfeeService:
         arrival_city: Optional[str] = None,
         current_user: Optional[CurrentUser] = None
     ) -> Tuple[List[FreightfeeViewModel], int]:
-        query = select(Freightfee)
-        query = query.where(Freightfee.tenant_id == current_user.tenant_id if current_user else 1)
-
+        filters = {}
         if carrier:
-            query = query.where(Freightfee.carrier.like(f'%{carrier}%'))
+            filters["carrier"] = f"%{carrier}%"
         if departure_city:
-            query = query.where(Freightfee.departure_city.like(f'%{departure_city}%'))
+            filters["departure_city"] = f"%{departure_city}%"
         if arrival_city:
-            query = query.where(Freightfee.arrival_city.like(f'%{arrival_city}%'))
+            filters["arrival_city"] = f"%{arrival_city}%"
+        
+        entities, totals = await self.page_query_by_tenant(
+            page_index=page_index,
+            page_size=page_size,
+            tenant_id=current_user.tenant_id if current_user else "1",
+            filters=filters
+        )
 
-        total_query = select(Freightfee.id).where(query.whereclause)
-        total_result = await self.db_session.execute(total_query)
-        totals = len(total_result.scalars().all())
-
-        query = query.order_by(Freightfee.create_time.desc())
-        query = query.offset((page_index - 1) * page_size).limit(page_size)
-
-        result = await self.db_session.execute(query)
-        entities = result.scalars().all()
-
-        data = [
+        result_data = [
             FreightfeeViewModel(
                 id=entity.id,
                 carrier=entity.carrier,
@@ -58,12 +57,12 @@ class FreightfeeService:
             for entity in entities
         ]
 
-        return data, totals
+        return result_data, totals
 
     async def get_by_id(self, id: int) -> Optional[FreightfeeViewModel]:
         query = select(Freightfee).where(Freightfee.id == id)
 
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         entity = result.scalar_one_or_none()
 
         if entity is None:
@@ -85,7 +84,8 @@ class FreightfeeService:
         )
 
     async def create(self, data: FreightfeeCreate, current_user: CurrentUser) -> Tuple[int, str]:
-        entity = Freightfee(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id if current_user else "1",
             carrier=data.carrier,
             departure_city=data.departure_city,
             arrival_city=data.arrival_city,
@@ -95,48 +95,44 @@ class FreightfeeService:
             creator=current_user.user_name if current_user else '',
             create_time=int(datetime.now().timestamp()),
             last_update_time=int(datetime.now().timestamp()),
-            is_valid=True,
-            tenant_id=current_user.tenant_id if current_user else 1
+            is_valid=True
         )
-
-        self.db_session.add(entity)
-        await self.db_session.commit()
 
         if entity.id > 0:
             return entity.id, "保存成功"
         else:
             return 0, "保存失败"
 
-    async def update(self, data: FreightfeeUpdate) -> Tuple[bool, str]:
-        query = select(Freightfee).where(Freightfee.id == data.id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def update(self, data: FreightfeeUpdate, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(data.id)
 
         if entity is None:
             return False, "记录不存在"
 
-        entity.carrier = data.carrier
-        entity.departure_city = data.departure_city
-        entity.arrival_city = data.arrival_city
-        entity.price_per_weight = data.price_per_weight
-        entity.price_per_volume = data.price_per_volume
-        entity.min_payment = data.min_payment
-        entity.is_valid = data.is_valid
-        entity.last_update_time = int(datetime.now().timestamp())
+        update_data = {
+            "carrier": data.carrier,
+            "departure_city": data.departure_city,
+            "arrival_city": data.arrival_city,
+            "price_per_weight": data.price_per_weight,
+            "price_per_volume": data.price_per_volume,
+            "min_payment": data.min_payment,
+            "is_valid": data.is_valid,
+            "last_update_time": int(datetime.now().timestamp())
+        }
 
-        await self.db_session.commit()
+        await self.update_with_tenant(data.id, current_user.tenant_id if current_user else "1", **update_data)
 
         return True, "保存成功"
 
     async def delete(self, id: int) -> Tuple[bool, str]:
         query = select(Freightfee).where(Freightfee.id == id)
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         entity = result.scalar_one_or_none()
 
         if entity is None:
             return False, "记录不存在"
 
-        await self.db_session.delete(entity)
-        await self.db_session.commit()
+        await self._db_session.delete(entity)
+        await self._db_session.commit()
 
         return True, "删除成功"

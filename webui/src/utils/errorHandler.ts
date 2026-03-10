@@ -1,13 +1,17 @@
 import { ElMessage } from 'element-plus'
+import { useUserStore } from '@/store/user'
+import router from '@/router'
 
-export enum ErrorCode {
-  SUCCESS = 200,
-  UNAUTHORIZED = 401,
-  FORBIDDEN = 403,
-  NOT_FOUND = 404,
-  SERVER_ERROR = 500,
-  NETWORK_ERROR = 0
-}
+export const ErrorCode = {
+  SUCCESS: 200,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  SERVER_ERROR: 500,
+  NETWORK_ERROR: 0
+} as const
+
+export type ErrorCode = typeof ErrorCode[keyof typeof ErrorCode]
 
 export interface ApiError {
   code: number
@@ -59,9 +63,7 @@ export class ErrorHandler {
     ElMessage.error('认证失败，请重新登录')
     const userStore = useUserStore()
     userStore.logout()
-    setTimeout(() => {
-      window.location.href = '/login'
-    }, 1000)
+    router.push('/login')
   }
 
   static showMessage(error: ApiError) {

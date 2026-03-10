@@ -6,10 +6,12 @@ import { PaginationHelper } from '@/utils/pagination'
 export interface Customer extends BaseEntity {
   id: number
   customer_name: string
-  customer_code: string
+  customer_code?: string
+  contact_person: string
   contact?: string
   phone?: string
   email?: string
+  contact_tel: string
   address?: string
   description?: string
   is_valid: boolean
@@ -17,22 +19,25 @@ export interface Customer extends BaseEntity {
 
 export interface CustomerCreate {
   customer_name: string
-  customer_code: string
+  customer_code?: string
+  contact_person: string
   contact?: string
   phone?: string
   email?: string
+  contact_tel: string
   address?: string
   description?: string
-  is_valid?: boolean
 }
 
 export interface CustomerUpdate {
   id: number
   customer_name?: string
   customer_code?: string
+  contact_person?: string
   contact?: string
   phone?: string
   email?: string
+  contact_tel?: string
   address?: string
   description?: string
   is_valid?: boolean

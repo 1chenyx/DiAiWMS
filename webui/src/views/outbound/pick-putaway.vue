@@ -20,9 +20,10 @@
           </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="searchForm.pick_putaway_status" placeholder="请选择状态" clearable>
-              <el-option label="待拣货" :value="1" />
-              <el-option label="拣货中" :value="2" />
-              <el-option label="已拣货" :value="3" />
+              <el-option label="待拣货" :value="0" />
+              <el-option label="拣货中" :value="1" />
+              <el-option label="拣货完成" :value="2" />
+              <el-option label="已生成出库单" :value="3" />
               <el-option label="已取消" :value="4" />
             </el-select>
           </el-form-item>
@@ -55,10 +56,10 @@
             <el-button type="primary" size="small" @click="handleViewDetail(scope.row)">
               <el-icon><View /></el-icon> 详情
             </el-button>
-            <el-button v-if="scope.row.pick_putaway_status === 1" type="success" size="small" @click="handleStartPick(scope.row)">
+            <el-button v-if="scope.row.pick_putaway_status === 0" type="success" size="small" @click="handleStartPick(scope.row)">
               <el-icon><Select /></el-icon> 开始拣货
             </el-button>
-            <el-button v-if="scope.row.pick_putaway_status === 2" type="success" size="small" @click="handleCompletePick(scope.row)">
+            <el-button v-if="scope.row.pick_putaway_status === 1" type="success" size="small" @click="handleCompletePick(scope.row)">
               <el-icon><Check /></el-icon> 完成拣货
             </el-button>
             <el-button type="danger" size="small" @click="handleDelete(scope.row.id)">
@@ -102,7 +103,7 @@
       </template>
     </el-dialog>
     
-    <el-dialog v-model="detailDialogVisible" title="拣货单详情" width="1000px">
+    <el-dialog v-model="detailDialogVisible" title="拣货单详情" width="1200px">
       <div class="pick-putaway-detail" v-if="selectedPickPutaway">
         <el-descriptions :column="2" border class="pick-putaway-header">
           <el-descriptions-item label="拣货单号">{{ selectedPickPutaway.pick_putaway_no }}</el-descriptions-item>
@@ -120,12 +121,50 @@
         <div v-if="selectedPickPutaway.items && selectedPickPutaway.items.length > 0">
           <h4>商品明细</h4>
           <el-table :data="selectedPickPutaway.items" style="width: 100%" border>
-            <el-table-column prop="sku_code" label="SKU编码" />
-            <el-table-column prop="sku_name" label="SKU名称" />
-            <el-table-column prop="spu_name" label="SPU名称" />
-            <el-table-column prop="qty" label="应拣货数量" />
-            <el-table-column prop="picked_qty" label="已拣货数量" />
-            <el-table-column prop="location_name" label="库位" />
+            <el-table-column prop="sku_code" label="SKU编码" width="120" />
+            <el-table-column prop="sku_name" label="SKU名称" width="150" />
+            <el-table-column prop="spu_name" label="SPU名称" width="150" />
+            <el-table-column prop="qty" label="应拣货数量" width="100" />
+            <el-table-column prop="picked_qty" label="已拣货数量" width="100" />
+            <el-table-column prop="goods_location_code" label="当前库位" width="150" />
+            <el-table-column label="选择库位" width="250" v-if="selectedPickPutaway.pick_putaway_status === 1">
+              <template #default="scope">
+                <el-tree-select
+                  v-model="scope.row.selected_location_id"
+                  :data="locationTree"
+                  :props="treeProps"
+                  placeholder="请选择库位"
+                  filterable
+                  check-strictly
+                  style="width: 100%"
+                  @change="(val: number) => handleLocationChange(scope.row, val)"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="本次拣货数量" width="120" v-if="selectedPickPutaway.pick_putaway_status === 1">
+              <template #default="scope">
+                <el-input-number
+                  v-model="scope.row.pick_input_qty"
+                  :min="1"
+                  :max="scope.row.qty - (scope.row.picked_qty || 0)"
+                  size="small"
+                  style="width: 100%"
+                  placeholder="数量"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="100" v-if="selectedPickPutaway.pick_putaway_status === 1">
+              <template #default="scope">
+                <el-button 
+                  type="primary" 
+                  size="small" 
+                  @click="handlePickItem(scope.row)"
+                  :disabled="!scope.row.selected_location_id || !scope.row.pick_input_qty"
+                >
+                  确认拣货
+                </el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </div>
       </div>
@@ -143,8 +182,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { Plus, View, Delete, Select, Check } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { outboundPickPutawayService, type OutboundPickPutawayViewModel, type OutboundPickPutawayCreate } from '@/services/outboundPickPutawayService'
+import { outboundPickPutawayService, type OutboundPickPutawayViewModel } from '@/services/outboundPickPutawayService'
 import { outboundOrderService, type OutboundOrderViewModel } from '@/services/outboundOrderService'
+import { warehouseLocationService } from '@/services/warehouseLocationService'
 import { useUserStore } from '@/store/user'
 
 const loading = ref(false)
@@ -164,6 +204,16 @@ const pagination = reactive({
 
 const pickPutawayList = ref<OutboundPickPutawayViewModel[]>([])
 const orderList = ref<OutboundOrderViewModel[]>([])
+const locationTree = ref<any[]>([])
+
+const treeProps = {
+  value: 'id',
+  label: 'node_name',
+  children: 'children',
+  disabled: (data: any) => {
+    return data.node_type !== 3
+  }
+}
 
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
@@ -189,7 +239,7 @@ const fetchPickPutawayList = async () => {
       order_no: searchForm.order_no || undefined,
       pick_putaway_status: searchForm.pick_putaway_status
     })
-    pickPutawayList.value = result.rows
+    pickPutawayList.value = result.rows || []
     pagination.total = result.totals
   } catch (error: any) {
     ElMessage.error(error.message || '获取拣货单列表失败')
@@ -203,9 +253,9 @@ const fetchOrderList = async () => {
     const result = await outboundOrderService.getPage({
       page_index: 1,
       page_size: 1000,
-      order_status: 1
+      order_status: 0
     })
-    orderList.value = result.rows
+    orderList.value = result.rows || []
   } catch (error: any) {
     console.error('获取出库订单列表失败:', error)
   }
@@ -263,7 +313,17 @@ const handleSubmit = async () => {
 const handleViewDetail = async (row: OutboundPickPutawayViewModel) => {
   try {
     const result = await outboundPickPutawayService.getById(row.id)
+    result.items?.forEach((item: any) => {
+      item.selected_location_id = item.goods_location_id
+      item.pick_input_qty = 1
+    })
     selectedPickPutaway.value = result
+    
+    if (result.warehouse_id) {
+      const treeResult = await warehouseLocationService.getTreeByWarehouse(result.warehouse_id)
+      locationTree.value = [treeResult]
+    }
+    
     detailDialogVisible.value = true
   } catch (error: any) {
     ElMessage.error(error.message || '获取详情失败')
@@ -280,8 +340,8 @@ const handleStartPick = async (row: OutboundPickPutawayViewModel) => {
     
     await outboundPickPutawayService.startPick(
       row.id,
-      userStore.userInfo?.id || 0,
-      userStore.userInfo?.username || '系统用户'
+      userStore.userInfo?.user_id || 0,
+      userStore.userInfo?.user_name || '系统用户'
     )
     
     ElMessage.success('开始拣货成功')
@@ -290,6 +350,78 @@ const handleStartPick = async (row: OutboundPickPutawayViewModel) => {
     if (error !== 'cancel') {
       ElMessage.error(error.message || '操作失败')
     }
+  }
+}
+
+const handlePickItem = async (item: any) => {
+  try {
+    if (!item.selected_location_id) {
+      ElMessage.warning('请先选择库位')
+      return
+    }
+    
+    if (!item.pick_input_qty || item.pick_input_qty <= 0) {
+      ElMessage.warning('请输入拣货数量')
+      return
+    }
+    
+    const remainingQty = item.qty - (item.picked_qty || 0)
+    if (item.pick_input_qty > remainingQty) {
+      ElMessage.warning(`拣货数量不能超过剩余数量 ${remainingQty}`)
+      return
+    }
+    
+    const pickedQty = (item.picked_qty || 0) + item.pick_input_qty
+    await outboundPickPutawayService.updateItem({
+      id: item.id,
+      picked_qty: pickedQty,
+      goods_location_id: item.selected_location_id,
+      picker_id: userStore.userInfo?.user_id || 0,
+      picker: userStore.userInfo?.user_name || '系统用户',
+      pick_time: Math.floor(Date.now() / 1000)
+    })
+    
+    ElMessage.success('拣货成功')
+    item.picked_qty = pickedQty
+    item.goods_location_id = item.selected_location_id
+    item.pick_input_qty = 1
+  } catch (error: any) {
+    ElMessage.error(error.message || '拣货失败')
+  }
+}
+
+const handleLocationChange = (item: any, val: number) => {
+  if (!locationTree.value || locationTree.value.length === 0) return
+  
+  const findLocationInfo = (nodes: any[], val: number, path: any[] = []): any => {
+    for (const node of nodes) {
+      if (node.id === val) {
+        return { ...node, path }
+      }
+      if (node.children && node.children.length > 0) {
+        const result = findLocationInfo(node.children, val, [...path, node])
+        if (result) return result
+      }
+    }
+    return null
+  }
+  
+  const locationInfo = findLocationInfo(locationTree.value, val)
+  if (locationInfo) {
+    const path = locationInfo.path || []
+    let warehouseName = ''
+    let areaName = ''
+    
+    for (const node of path) {
+      if (node.node_type === 1) {
+        warehouseName = node.node_name
+      } else if (node.node_type === 2) {
+        areaName = node.node_name
+      }
+    }
+    
+    item.selected_warehouse_name = warehouseName
+    item.selected_area_name = areaName
   }
 }
 
@@ -332,9 +464,10 @@ const handleDelete = async (id: number) => {
 
 const getStatusType = (status: number) => {
   switch (status) {
-    case 1: return 'info'
-    case 2: return 'warning'
-    case 3: return 'success'
+    case 0: return 'info'
+    case 1: return 'warning'
+    case 2: return 'success'
+    case 3: return 'primary'
     case 4: return 'danger'
     default: return ''
   }
@@ -342,9 +475,10 @@ const getStatusType = (status: number) => {
 
 const getStatusText = (status: number) => {
   switch (status) {
-    case 1: return '待拣货'
-    case 2: return '拣货中'
-    case 3: return '已拣货'
+    case 0: return '待拣货'
+    case 1: return '拣货中'
+    case 2: return '拣货完成'
+    case 3: return '已生成出库单'
     case 4: return '已取消'
     default: return ''
   }

@@ -21,7 +21,7 @@ class CategoryService(TenantAwareService[CategoryRepository, Category]):
         self._db_session = db_session
 
     async def get_all(self, current_user: CurrentUser) -> List[CategoryViewModel]:
-        categories = await self._repository.get_by_tenant(current_user.tenant_id)
+        categories = await self.get_by_tenant(current_user.tenant_id)
         
         return [
             CategoryViewModel(
@@ -37,10 +37,13 @@ class CategoryService(TenantAwareService[CategoryRepository, Category]):
             for category in categories
         ]
 
-    async def get_by_id(self, id: int) -> Optional[CategoryViewModel]:
+    async def get_by_id(self, id: int, current_user: Optional[CurrentUser] = None) -> Optional[CategoryViewModel]:
         category = await self._repository.get_by_id(id)
         
         if category is None:
+            return None
+        
+        if current_user and category.tenant_id != current_user.tenant_id:
             return None
         
         return CategoryViewModel(
@@ -55,22 +58,22 @@ class CategoryService(TenantAwareService[CategoryRepository, Category]):
         )
 
     async def add(self, view_model: CategoryCreateViewModel, current_user: CurrentUser) -> Tuple[int, str]:
-        existing = await self._repository.exists_by_fields({
-            "category_name": view_model.category_name,
-            "tenant_id": current_user.tenant_id
-        })
+        existing = await self.get_one_by_tenant(
+            current_user.tenant_id,
+            filters={"category_name": view_model.category_name}
+        )
         
         if existing:
             return 0, f"分类名称 '{view_model.category_name}' 已存在"
         
-        category = await self._repository.create(
+        category = await self.create_with_tenant(
+            current_user.tenant_id,
             category_name=view_model.category_name,
             parent_id=view_model.parent_id,
             creator=current_user.user_name,
             create_time=int(datetime.now().timestamp()),
             last_update_time=int(datetime.now().timestamp()),
-            is_valid=view_model.is_valid,
-            tenant_id=current_user.tenant_id
+            is_valid=view_model.is_valid
         )
         
         return category.id, "保存成功"
@@ -82,12 +85,12 @@ class CategoryService(TenantAwareService[CategoryRepository, Category]):
             return False, "记录不存在"
         
         if view_model.category_name is not None:
-            existing = await self._repository.exists_by_fields({
-                "category_name": view_model.category_name,
-                "tenant_id": category.tenant_id
-            }, exclude_id=id)
+            existing = await self.get_one_by_tenant(
+                category.tenant_id,
+                filters={"category_name": view_model.category_name}
+            )
             
-            if existing:
+            if existing and existing.id != id:
                 return False, f"分类名称 '{view_model.category_name}' 已存在"
         
         update_data = {}
@@ -120,11 +123,14 @@ class CategoryService(TenantAwareService[CategoryRepository, Category]):
                 children.extend(self._get_children(categories, category.id))
         return children
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
+    async def delete(self, id: int, current_user: Optional[CurrentUser] = None) -> Tuple[bool, str]:
         category = await self._repository.get_by_id(id)
         
         if category is None:
             return False, "记录不存在"
+        
+        if current_user and category.tenant_id != current_user.tenant_id:
+            return False, "无权删除该记录"
         
         children = await self._repository.get_by_parent_id(id, category.tenant_id)
         
@@ -148,7 +154,7 @@ class CategoryService(TenantAwareService[CategoryRepository, Category]):
         Returns:
             分类树形结构列表
         """
-        categories = await self._repository.get_by_tenant(current_user.tenant_id)
+        categories = await self.get_by_tenant(current_user.tenant_id)
         
         # 构建树形结构
         tree_nodes = {}

@@ -3,17 +3,11 @@ import { http } from './api'
 import type { BaseEntity, PageParams, PageResult } from '@/types/common'
 import { PaginationHelper } from '@/utils/pagination'
 
-export interface InboundReceiptItem {
-  inbound_pick_putaway_item_id: number
-  spu_id: number
-  sku_id: number
-  qty: number
-  location_id?: number
-  location_name?: string
-}
-
 export interface InboundReceiptCreate {
-  inbound_pick_putaway_id: number
+  order_id?: number
+  inbound_pick_putaway_id?: number
+  inbound_person: string
+  remark?: string
 }
 
 export interface InboundReceiptUpdate {
@@ -24,34 +18,29 @@ export interface InboundReceiptUpdate {
 export interface InboundReceiptItemViewModel {
   id: number
   inbound_receipt_id: number
-  inbound_pick_putaway_item_id: number
-  spu_id: number
   sku_id: number
-  spu_name: string
-  sku_name: string
   sku_code: string
+  sku_name: string
   qty: number
-  location_id?: number
-  location_name?: string
+  batch_no?: string
+  production_date?: number
+  remark?: string
 }
 
 export interface InboundReceiptViewModel extends BaseEntity {
   id: number
   receipt_no: string
-  inbound_pick_putaway_id: number
-  pick_putaway_no: string
-  inbound_order_id: number
+  order_id: number
   order_no: string
-  supplier_id: number
-  supplier_name: string
-  warehouse_id: number
-  warehouse_name: string
   receipt_status: number
-  total_qty: number
-  inbound_person?: string
+  inbound_person: string
   inbound_time?: string
-  remark?: string
+  pick_putaway_no?: string
+  supplier_name?: string
+  warehouse_name?: string
+  total_qty?: number
   items?: InboundReceiptItemViewModel[]
+  remark?: string
 }
 
 export interface InboundReceiptPageParams extends PageParams {

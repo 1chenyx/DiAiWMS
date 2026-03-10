@@ -19,7 +19,7 @@ class CustomerRepository(BaseRepository[Customer]):
         page_index: int,
         page_size: int,
         tenant_id: str,
-        customer_name: Optional[str] = None
+        search_params: Optional[dict] = None
     ):
         """
         根据租户ID搜索客户
@@ -28,15 +28,16 @@ class CustomerRepository(BaseRepository[Customer]):
             page_index: 页码，从1开始
             page_size: 每页数量
             tenant_id: 租户ID
-            customer_name: 客户名称（模糊查询）
+            search_params: 搜索参数
             
         Returns:
             (客户列表, 总数量)
         """
         query = select(Customer).where(Customer.tenant_id == tenant_id)
         
-        if customer_name:
-            query = query.where(Customer.customer_name.like(f"%{customer_name}%"))
+        if search_params:
+            if "customer_name" in search_params:
+                query = query.where(Customer.customer_name.like(f"%{search_params['customer_name']}%"))
         
         total_query = select(func.count()).select_from(query.subquery())
         total_result = await self._db_session.execute(total_query)

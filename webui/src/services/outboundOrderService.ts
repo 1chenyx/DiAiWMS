@@ -4,11 +4,9 @@ import type { BaseEntity, PageParams, PageResult } from '@/types/common'
 import { PaginationHelper } from '@/utils/pagination'
 
 export interface OutboundOrderItem {
-  spu_id: number
   sku_id: number
   qty: number
-  weight?: number
-  volume?: number
+  remark?: string
 }
 
 export interface OutboundOrderCreate {
@@ -29,14 +27,15 @@ export interface OutboundOrderUpdate {
 export interface OutboundOrderItemViewModel {
   id: number
   outbound_order_id: number
-  spu_id: number
   sku_id: number
-  spu_name: string
-  sku_name: string
+  spu_id: number
   sku_code: string
+  sku_name: string
+  spu_name: string
   qty: number
   weight?: number
   volume?: number
+  remark?: string
 }
 
 export interface OutboundOrderViewModel extends BaseEntity {

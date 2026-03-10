@@ -10,6 +10,8 @@ class OutboundOrderItemCreate(BaseModel):
     volume: float = Field(..., ge=0, description='体积')
     price: Optional[float] = Field(None, ge=0, description='价格')
     expiry_date: int = Field(default=0, description='过期日期')
+    batch_no: Optional[str] = Field(None, max_length=64, description='批次号')
+    production_date: Optional[int] = Field(None, description='生产日期')
     goods_location_id: int = Field(default=0, description='指定库位ID')
 
 

@@ -5,11 +5,15 @@ from sqlalchemy import select
 from app.models.entities.print_solution import PrintSolution
 from app.schemas.print_solution import PrintSolutionCreate, PrintSolutionUpdate, PrintSolutionViewModel
 from app.core.current_user import CurrentUser
+from app.repositories.print_solution_repository import PrintSolutionRepository
+from app.services.base_service import TenantAwareService
 
 
-class PrintSolutionService:
+class PrintSolutionService(TenantAwareService[PrintSolutionRepository, PrintSolution]):
     def __init__(self, db_session: AsyncSession):
-        self.db_session = db_session
+        repository = PrintSolutionRepository(db_session)
+        super().__init__(repository)
+        self._db_session = db_session
 
     async def search(
         self,
@@ -19,23 +23,18 @@ class PrintSolutionService:
         solution_name: Optional[str] = None,
         current_user: Optional[CurrentUser] = None
     ) -> Tuple[List[PrintSolutionViewModel], int]:
-        query = select(PrintSolution)
-        query = query.where(PrintSolution.tenant_id == current_user.tenant_id if current_user else 1)
-
+        filters = {}
         if vue_path:
-            query = query.where(PrintSolution.vue_path.like(f'%{vue_path}%'))
+            filters["vue_path"] = f"%{vue_path}%"
         if solution_name:
-            query = query.where(PrintSolution.solution_name.like(f'%{solution_name}%'))
-
-        total_query = select(PrintSolution.id).where(query.whereclause)
-        total_result = await self.db_session.execute(total_query)
-        totals = len(total_result.scalars().all())
-
-        query = query.order_by(PrintSolution.last_update_time.desc())
-        query = query.offset((page_index - 1) * page_size).limit(page_size)
-
-        result = await self.db_session.execute(query)
-        entities = result.scalars().all()
+            filters["solution_name"] = f"%{solution_name}%"
+        
+        entities, totals = await self.page_query_by_tenant(
+            page_index=page_index,
+            page_size=page_size,
+            tenant_id=current_user.tenant_id if current_user else "",
+            filters=filters
+        )
 
         data = [
             PrintSolutionViewModel(
@@ -58,7 +57,7 @@ class PrintSolutionService:
     async def get_by_id(self, id: int) -> Optional[PrintSolutionViewModel]:
         query = select(PrintSolution).where(PrintSolution.id == id)
 
-        result = await self.db_session.execute(query)
+        result = await self._db_session.execute(query)
         entity = result.scalar_one_or_none()
 
         if entity is None:
@@ -78,7 +77,8 @@ class PrintSolutionService:
         )
 
     async def create(self, data: PrintSolutionCreate, current_user: CurrentUser) -> Tuple[int, str]:
-        entity = PrintSolution(
+        entity = await self.create_with_tenant(
+            current_user.tenant_id if current_user else "",
             vue_path=data.vue_path,
             tab_page=data.tab_page,
             solution_name=data.solution_name,
@@ -86,48 +86,42 @@ class PrintSolutionService:
             report_length=data.report_length,
             report_width=data.report_width,
             report_direction=data.report_direction,
-            last_update_time=int(datetime.now().timestamp()),
-            tenant_id=current_user.tenant_id if current_user else 1
+            last_update_time=int(datetime.now().timestamp())
         )
-
-        self.db_session.add(entity)
-        await self.db_session.commit()
 
         if entity.id > 0:
             return entity.id, "保存成功"
         else:
             return 0, "保存失败"
 
-    async def update(self, data: PrintSolutionUpdate) -> Tuple[bool, str]:
-        query = select(PrintSolution).where(PrintSolution.id == data.id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def update(self, data: PrintSolutionUpdate, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(data.id)
 
         if entity is None:
             return False, "记录不存在"
 
-        entity.vue_path = data.vue_path
-        entity.tab_page = data.tab_page
-        entity.solution_name = data.solution_name
-        entity.config_json = data.config_json
-        entity.report_length = data.report_length
-        entity.report_width = data.report_width
-        entity.report_direction = data.report_direction
-        entity.last_update_time = int(datetime.now().timestamp())
-
-        await self.db_session.commit()
+        await self.update_with_tenant(
+            data.id,
+            entity.tenant_id,
+            vue_path=data.vue_path,
+            tab_page=data.tab_page,
+            solution_name=data.solution_name,
+            config_json=data.config_json,
+            report_length=data.report_length,
+            report_width=data.report_width,
+            report_direction=data.report_direction,
+            last_update_time=int(datetime.now().timestamp())
+        )
 
         return True, "保存成功"
 
-    async def delete(self, id: int) -> Tuple[bool, str]:
-        query = select(PrintSolution).where(PrintSolution.id == id)
-        result = await self.db_session.execute(query)
-        entity = result.scalar_one_or_none()
+    async def delete(self, id: int, current_user: CurrentUser) -> Tuple[bool, str]:
+        entity = await self.get_by_id(id)
 
         if entity is None:
             return False, "记录不存在"
 
-        await self.db_session.delete(entity)
-        await self.db_session.commit()
+        await self._db_session.delete(entity)
+        await self._db_session.commit()
 
         return True, "删除成功"

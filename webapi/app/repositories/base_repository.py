@@ -69,7 +69,10 @@ class BaseRepository(Generic[ModelType]):
                         query = query.where(getattr(self._model, key) == value)
         
         if order_by is not None:
-            query = query.order_by(order_by)
+            if isinstance(order_by, (list, tuple)):
+                query = query.order_by(*order_by)
+            else:
+                query = query.order_by(order_by)
         
         if limit is not None:
             query = query.limit(limit)
@@ -330,7 +333,10 @@ class BaseRepository(Generic[ModelType]):
         total = total_result.scalar()
         
         if order_by is not None:
-            query = query.order_by(order_by)
+            if isinstance(order_by, (list, tuple)):
+                query = query.order_by(*order_by)
+            else:
+                query = query.order_by(order_by)
         
         query = query.offset((page_index - 1) * page_size).limit(page_size)
         

@@ -1,6 +1,8 @@
-import type { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { ErrorHandler, ErrorCode } from '@/utils/errorHandler'
+import { useUserStore } from '@/store/user'
+import router from '@/router'
 
 export interface RequestConfig extends InternalAxiosRequestConfig {
   skipAuth?: boolean
@@ -13,7 +15,11 @@ export interface ResponseInterceptorOptions {
 }
 
 export class InterceptorManager {
-  constructor(private axiosInstance: AxiosInstance) {}
+  private axiosInstance: AxiosInstance
+
+  constructor(axiosInstance: AxiosInstance) {
+    this.axiosInstance = axiosInstance
+  }
 
   setupRequestInterceptor() {
     this.axiosInstance.interceptors.request.use(
@@ -49,8 +55,11 @@ export class InterceptorManager {
           if (data.isSuccess) {
             return data.data
           } else {
-            if (data.code === ErrorCode.UNAUTHORIZED) {
-              ErrorHandler.handleUnauthorized()
+            if (data.code === ErrorCode.UNAUTHORIZED || (data.error && data.error.includes('401'))) {
+              ElMessage.error('认证失败，请重新登录')
+              const userStore = useUserStore()
+              userStore.logout()
+              router.push('/login')
               return Promise.reject(new Error(data.msg || '认证失败'))
             }
             ElMessage.error(data.msg || '请求失败')
@@ -62,6 +71,11 @@ export class InterceptorManager {
       },
       (error) => {
         const apiError = ErrorHandler.handle(error)
+        
+        if (apiError.code === ErrorCode.UNAUTHORIZED || (apiError.msg && apiError.msg.includes('401'))) {
+          return Promise.reject(error)
+        }
+        
         if (options?.onError) {
           return options.onError(error)
         }

@@ -17,10 +17,9 @@
           </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="searchForm.order_status" placeholder="请选择状态" clearable>
-              <el-option label="待处理" :value="1" />
-              <el-option label="处理中" :value="2" />
-              <el-option label="已完成" :value="3" />
-              <el-option label="已取消" :value="4" />
+              <el-option label="待处理" :value="0" />
+              <el-option label="已生成上架单" :value="1" />
+              <el-option label="已取消" :value="2" />
             </el-select>
           </el-form-item>
           <el-form-item>
@@ -218,7 +217,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { Plus, View, Delete } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { outboundOrderService, type OutboundOrderViewModel, type OutboundOrderCreate, type OutboundOrderItem } from '@/services/outboundOrderService'
+import { outboundOrderService, type OutboundOrderViewModel, type OutboundOrderItem } from '@/services/outboundOrderService'
 import { customerService, type Customer } from '@/services/customerService'
 import { warehouseLocationService, type WarehouseLocation } from '@/services/warehouseLocationService'
 import { skuService, type Sku } from '@/services/skuService'
@@ -283,7 +282,7 @@ const fetchOrderList = async () => {
       order_no: searchForm.order_no || undefined,
       order_status: searchForm.order_status
     })
-    orderList.value = result.rows
+    orderList.value = result.rows || []
     pagination.total = result.totals
   } catch (error: any) {
     ElMessage.error(error.message || '获取出库订单列表失败')
@@ -303,7 +302,7 @@ const fetchCustomers = async () => {
 
 const fetchWarehouses = async () => {
   try {
-    const result = await warehouseLocationService.getList(1)
+    const result = await warehouseLocationService.getAll(1)
     warehouseList.value = result
   } catch (error: any) {
     console.error('获取仓库列表失败:', error)
@@ -359,7 +358,7 @@ const searchSku = async () => {
       sku_code: skuSearchForm.keyword || undefined,
       sku_name: skuSearchForm.keyword || undefined
     })
-    skuList.value = result.data
+    skuList.value = result.data || []
     skuPagination.total = result.totals
   } catch (error: any) {
     ElMessage.error(error.message || '获取SKU列表失败')
@@ -382,11 +381,9 @@ const confirmSkuSelection = () => {
     const exists = formData.items.find(item => item.sku_id === sku.id)
     if (!exists) {
       formData.items.push({
-        spu_id: sku.spu_id,
         sku_id: sku.id,
         qty: 1,
-        weight: sku.weight,
-        volume: sku.volume,
+        remark: undefined,
         sku_code: sku.sku_code,
         sku_name: sku.sku_name,
         spu_name: sku.spu_name
@@ -415,11 +412,9 @@ const handleSubmit = async () => {
     submitting.value = true
     
     const items = formData.items.map(item => ({
-      spu_id: item.spu_id,
       sku_id: item.sku_id,
       qty: item.qty,
-      weight: item.weight,
-      volume: item.volume
+      remark: item.remark
     }))
     
     await outboundOrderService.create({
@@ -469,20 +464,18 @@ const handleDelete = async (id: number) => {
 
 const getStatusType = (status: number) => {
   switch (status) {
-    case 1: return 'info'
-    case 2: return 'warning'
-    case 3: return 'success'
-    case 4: return 'danger'
+    case 0: return 'info'
+    case 1: return 'warning'
+    case 2: return 'danger'
     default: return ''
   }
 }
 
 const getStatusText = (status: number) => {
   switch (status) {
-    case 1: return '待处理'
-    case 2: return '处理中'
-    case 3: return '已完成'
-    case 4: return '已取消'
+    case 0: return '待处理'
+    case 1: return '已生成上架单'
+    case 2: return '已取消'
     default: return ''
   }
 }

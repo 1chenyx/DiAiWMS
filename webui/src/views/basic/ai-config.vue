@@ -25,7 +25,7 @@
         <el-table-column prop="creator" label="创建人" />
         <el-table-column prop="create_time" label="创建时间">
           <template #default="scope">
-            {{ formatTime(scope.row.create_time) }}
+            {{ formatTimestamp(scope.row.create_time) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" fixed="right" width="200">
@@ -140,6 +140,7 @@ import {
   type TenantAIConfigCreate,
   type TenantAIConfigUpdate
 } from '@/services/aiConfigService'
+import { formatTimestamp } from '@/utils/format'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -192,7 +193,7 @@ const fetchConfigList = async () => {
       page: pagination.page,
       page_size: pagination.page_size
     })
-    configList.value = result.rows
+    configList.value = result.rows || []
     pagination.total = result.totals
   } catch (error: any) {
     ElMessage.error(error.message || '获取配置列表失败')
@@ -221,7 +222,7 @@ const fetchProvidersWithModels = async () => {
   }
 }
 
-const handleProviderChange = (providerCode: string) => {
+const handleProviderChange = () => {
   formData.model_code = ''
 }
 
@@ -268,11 +269,12 @@ const handleSubmit = async () => {
     
     if (isEdit.value) {
       const updateData: TenantAIConfigUpdate = {
+        id: currentConfigId.value,
         api_key: formData.api_key,
         api_endpoint: formData.api_endpoint || undefined,
         is_default: formData.is_default
       }
-      await tenantAIConfigService.update(currentConfigId.value, updateData)
+      await tenantAIConfigService.update(updateData)
       ElMessage.success('更新成功')
     } else {
       const createData: TenantAIConfigCreate = {
@@ -329,12 +331,6 @@ const handleDelete = async (id: number) => {
       ElMessage.error(error.message || '删除失败')
     }
   }
-}
-
-const formatTime = (timestamp: number) => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp * 1000)
-  return date.toLocaleString('zh-CN')
 }
 
 onMounted(() => {
