@@ -154,9 +154,6 @@ const searchForm = reactive({
   receipt_status: undefined as number | undefined
 })
 
-const { pagination, handleSizeChange, handleCurrentChange, setTotal } = usePagination()
-const { confirmDelete, confirm } = useConfirm()
-
 const receiptList = ref<OutboundReceiptViewModel[]>([])
 const pickPutawayList = ref<OutboundPickPutawayViewModel[]>([])
 
@@ -173,6 +170,11 @@ const formRules = reactive<FormRules>({
 const detailDialogVisible = ref(false)
 const selectedReceipt = ref<any>(null)
 const userStore = useUserStore()
+
+const { pagination, handleSizeChange, handleCurrentChange, setTotal } = usePagination({
+  onPageChange: () => fetchReceiptList()
+})
+const { confirmDelete, confirm } = useConfirm()
 
 const fetchReceiptList = async () => {
   loading.value = true

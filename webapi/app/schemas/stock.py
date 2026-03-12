@@ -28,6 +28,8 @@ class StockViewModel(BaseModel):
     spu_name: str = Field(default="", description="商品名称")
     sku_code: str = Field(default="", description="SKU编码")
     sku_name: str = Field(default="", description="SKU名称")
+    batch_no: str = Field(default="", description="批次号")
+    production_date: int = Field(default=0, description="生产日期")
 
 
 class StockCreateViewModel(BaseModel):

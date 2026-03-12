@@ -127,6 +127,8 @@ class InboundOrderService(TenantAwareService[InboundOrderRepository, InboundOrde
                 volume=float(entity.volume),
                 price=float(entity.price),
                 expiry_date=entity.expiry_date,
+                batch_no=entity.batch_no,
+                production_date=entity.production_date,
                 tenant_id=entity.tenant_id
             ))
 

@@ -2,7 +2,7 @@ from typing import List, Tuple, Optional
 from datetime import datetime
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.entities import Stock, GoodsLocation, Sku, Spu
+from app.models.entities import Stock
 from app.schemas.stock import StockViewModel, StockCreateViewModel, StockUpdateViewModel
 from app.core.current_user import CurrentUser
 from app.repositories.stock_repository import StockRepository
@@ -39,13 +39,7 @@ class StockService(TenantAwareService[StockRepository, Stock]):
         Returns:
             库存列表和总数量
         """
-        query = select(Stock, GoodsLocation, Sku, Spu).join(
-            GoodsLocation, Stock.goods_location_id == GoodsLocation.id
-        ).join(
-            Sku, Stock.sku_id == Sku.id
-        ).join(
-            Spu, Sku.spu_id == Spu.id
-        ).where(Stock.tenant_id == current_user.tenant_id)
+        query = select(Stock).where(Stock.tenant_id == current_user.tenant_id)
         
         if search_params:
             if "sku_id" in search_params:
@@ -65,7 +59,7 @@ class StockService(TenantAwareService[StockRepository, Stock]):
         query = query.offset((page_index - 1) * page_size).limit(page_size)
         
         result = await self._db_session.execute(query)
-        rows = result.all()
+        rows = result.scalars().all()
         
         data = [
             StockViewModel(
@@ -88,9 +82,11 @@ class StockService(TenantAwareService[StockRepository, Stock]):
                 warehouse_location_name=stock.warehouse_location_name,
                 spu_name=stock.spu_name,
                 sku_code=stock.sku_code,
-                sku_name=stock.sku_name
+                sku_name=stock.sku_name,
+                batch_no=stock.batch_no,
+                production_date=int(stock.production_date)
             )
-            for stock, goods_location, sku, spu in rows
+            for stock in rows
         ]
         
         return data, totals
@@ -128,7 +124,9 @@ class StockService(TenantAwareService[StockRepository, Stock]):
                 warehouse_location_name=stock.warehouse_location_name,
                 spu_name=stock.spu_name,
                 sku_code=stock.sku_code,
-                sku_name=stock.sku_name
+                sku_name=stock.sku_name,
+                batch_no=stock.batch_no,
+                production_date=int(stock.production_date)
             )
             for stock in stocks
         ]
@@ -172,7 +170,9 @@ class StockService(TenantAwareService[StockRepository, Stock]):
             warehouse_location_name=stock.warehouse_location_name,
             spu_name=stock.spu_name,
             sku_code=stock.sku_code,
-            sku_name=stock.sku_name
+            sku_name=stock.sku_name,
+            batch_no=stock.batch_no,
+            production_date=int(stock.production_date)
         )
 
     async def add(self, view_model: StockCreateViewModel, current_user: CurrentUser) -> Tuple[int, str]:

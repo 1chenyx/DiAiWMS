@@ -50,6 +50,7 @@ class InboundPickPutawayViewModel(BaseModel):
     pick_putaway_status: int
     order_id: int
     order_no: str
+    order_nos: Optional[str] = None
     supplier_id: int
     supplier_name: str
     warehouse_id: int

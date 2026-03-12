@@ -64,7 +64,7 @@ class StocktakingService(TenantAwareService[StocktakingRepository, Stocktaking])
                 handle_time=entity.handle_time,
                 sku_code=entity.sku.sku_code if entity.sku else '',
                 sku_name=entity.sku.sku_name if entity.sku else '',
-                location_code=entity.goods_location.location_code if entity.goods_location else ''
+                location_code=entity.goods_location.node_name if entity.goods_location else ''
             )
             for entity in entities
         ]
@@ -104,7 +104,7 @@ class StocktakingService(TenantAwareService[StocktakingRepository, Stocktaking])
             handle_time=entity.handle_time,
             sku_code=entity.sku.sku_code if entity.sku else '',
             sku_name=entity.sku.sku_name if entity.sku else '',
-            location_code=entity.goods_location.location_code if entity.goods_location else ''
+            location_code=entity.goods_location.node_name if entity.goods_location else ''
         )
 
     async def create(self, data: StocktakingCreate, current_user: CurrentUser) -> Tuple[int, str]:

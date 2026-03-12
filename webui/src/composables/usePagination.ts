@@ -5,13 +5,15 @@ export interface PaginationOptions {
   defaultPageSize?: number
   defaultPageIndex?: number
   pageSizes?: number[]
+  onPageChange?: () => void
 }
 
 export function usePagination(options: PaginationOptions = {}) {
   const {
     defaultPageSize = DEFAULT_PAGE_SIZE,
     defaultPageIndex = DEFAULT_PAGE_INDEX,
-    pageSizes = PAGE_SIZES
+    pageSizes = PAGE_SIZES,
+    onPageChange
   } = options
 
   const pagination = reactive({
@@ -23,10 +25,12 @@ export function usePagination(options: PaginationOptions = {}) {
   const handleSizeChange = (size: number) => {
     pagination.page_size = size
     pagination.page_index = DEFAULT_PAGE_INDEX
+    onPageChange?.()
   }
 
   const handleCurrentChange = (current: number) => {
     pagination.page_index = current
+    onPageChange?.()
   }
 
   const resetPagination = () => {

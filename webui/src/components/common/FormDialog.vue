@@ -4,6 +4,7 @@
     :title="title"
     :width="width"
     :close-on-click-modal="false"
+    class="form-dialog"
     @close="handleClose"
   >
     <el-form 
@@ -11,17 +12,25 @@
       :model="formData" 
       :rules="rules" 
       :label-width="labelWidth"
+      class="form-content"
     >
       <slot name="form"></slot>
     </el-form>
     
     <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="loading">
+      <div class="dialog-footer">
+        <el-button @click="handleClose" size="large">
+          取消
+        </el-button>
+        <el-button 
+          type="primary" 
+          @click="handleSubmit" 
+          :loading="loading"
+          size="large"
+        >
           确定
         </el-button>
-      </span>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -83,9 +92,101 @@ watch(() => props.visible, (val) => {
 </script>
 
 <style scoped>
+.form-dialog {
+  border-radius: var(--radius-xl);
+}
+
+:deep(.el-dialog) {
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+
+:deep(.el-dialog__header) {
+  padding: 24px 32px;
+  border-bottom: 1px solid var(--color-border-primary);
+  background: var(--color-bg-secondary);
+}
+
+:deep(.el-dialog__title) {
+  font-size: 20px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+:deep(.el-dialog__headerbtn) {
+  top: 24px;
+  right: 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-base);
+  transition: all var(--duration-fast) var(--ease-in-out);
+}
+
+:deep(.el-dialog__headerbtn:hover) {
+  background: var(--color-bg-tertiary);
+}
+
+:deep(.el-dialog__body) {
+  padding: 32px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+:deep(.el-dialog__footer) {
+  padding: 20px 32px;
+  border-top: 1px solid var(--color-border-primary);
+  background: var(--color-bg-secondary);
+}
+
+.form-content {
+  width: 100%;
+}
+
+:deep(.el-form-item__label) {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+:deep(.el-input__wrapper),
+:deep(.el-select__wrapper),
+:deep(.el-textarea__inner) {
+  border-radius: var(--radius-base);
+  transition: all var(--duration-fast) var(--ease-in-out);
+}
+
+:deep(.el-input__wrapper:hover),
+:deep(.el-select__wrapper:hover),
+:deep(.el-textarea__inner:hover) {
+  box-shadow: 0 0 0 1px var(--color-primary) inset;
+}
+
+:deep(.el-input__wrapper.is-focus),
+:deep(.el-select__wrapper.is-focus),
+:deep(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 2px var(--color-primary) inset;
+}
+
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
+}
+
+.dialog-footer .el-button {
+  min-width: 100px;
+  border-radius: var(--radius-base);
+  font-weight: var(--font-weight-medium);
+}
+
+@media (max-width: 768px) {
+  :deep(.el-dialog) {
+    width: 90% !important;
+    margin-top: 5vh !important;
+  }
+  
+  :deep(.el-dialog__body) {
+    padding: 24px 20px;
+  }
 }
 </style>

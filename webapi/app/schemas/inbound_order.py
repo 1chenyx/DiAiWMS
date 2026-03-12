@@ -72,6 +72,8 @@ class InboundOrderItemViewModel(BaseModel):
     volume: float
     price: float
     expiry_date: int
+    batch_no: str
+    production_date: int
     tenant_id: str
 
 

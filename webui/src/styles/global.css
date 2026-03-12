@@ -1,0 +1,298 @@
+/* 全局重置和基础样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-secondary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-text-tertiary);
+  border-radius: var(--radius-full);
+  transition: background var(--duration-base) var(--ease-in-out);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* 文字选中样式 */
+::selection {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+/* 链接样式 */
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-in-out);
+}
+
+a:hover {
+  color: var(--color-primary-light);
+}
+
+/* 标题样式 */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+h1 { font-size: var(--font-size-5xl); }
+h2 { font-size: var(--font-size-4xl); }
+h3 { font-size: var(--font-size-3xl); }
+h4 { font-size: var(--font-size-2xl); }
+h5 { font-size: var(--font-size-xl); }
+h6 { font-size: var(--font-size-lg); }
+
+/* 段落样式 */
+p {
+  margin: 0;
+  line-height: var(--line-height-relaxed);
+}
+
+/* 列表样式 */
+ul, ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* 图片样式 */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* 按钮基础样式 */
+button {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 输入框基础样式 */
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+/* 表格基础样式 */
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+}
+
+/* 代码样式 */
+code, pre {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+code {
+  padding: 2px 6px;
+  background-color: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
+}
+
+pre {
+  padding: var(--spacing-4);
+  background-color: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+pre code {
+  padding: 0;
+  background: none;
+  color: inherit;
+}
+
+/* 禁用状态 */
+[disabled] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* 隐藏但保留可访问性 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Element Plus 覆盖样式 */
+.el-card {
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid var(--color-border-primary) !important;
+  box-shadow: var(--shadow-card) !important;
+  transition: all var(--duration-base) var(--ease-in-out) !important;
+}
+
+.el-card:hover {
+  box-shadow: var(--shadow-card-hover) !important;
+}
+
+.el-card__header {
+  border-bottom: 1px solid var(--color-border-primary) !important;
+  padding: var(--spacing-4) var(--spacing-6) !important;
+}
+
+.el-card__body {
+  padding: var(--spacing-6) !important;
+}
+
+.el-button {
+  border-radius: var(--radius-base) !important;
+  font-weight: var(--font-weight-medium) !important;
+  transition: all var(--duration-fast) var(--ease-in-out) !important;
+}
+
+.el-button--primary {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.el-button--primary:hover {
+  background-color: var(--color-primary-light) !important;
+  border-color: var(--color-primary-light) !important;
+}
+
+.el-input__wrapper {
+  border-radius: var(--radius-base) !important;
+  box-shadow: 0 0 0 1px var(--color-border-primary) inset !important;
+  transition: all var(--duration-fast) var(--ease-in-out) !important;
+}
+
+.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--color-border-secondary) inset !important;
+}
+
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 2px var(--color-primary) inset !important;
+}
+
+.el-table {
+  border-radius: var(--radius-md) !important;
+  overflow: hidden !important;
+}
+
+.el-table th.el-table__cell {
+  background-color: var(--color-bg-secondary) !important;
+  color: var(--color-text-secondary) !important;
+  font-weight: var(--font-weight-semibold) !important;
+}
+
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.el-dialog {
+  border-radius: var(--radius-xl) !important;
+  box-shadow: var(--shadow-modal) !important;
+}
+
+.el-dialog__header {
+  border-bottom: 1px solid var(--color-border-primary) !important;
+  padding: var(--spacing-5) var(--spacing-6) !important;
+}
+
+.el-dialog__body {
+  padding: var(--spacing-6) !important;
+}
+
+.el-dialog__footer {
+  border-top: 1px solid var(--color-border-primary) !important;
+  padding: var(--spacing-4) var(--spacing-6) !important;
+}
+
+.el-tag {
+  border-radius: var(--radius-base) !important;
+  font-weight: var(--font-weight-medium) !important;
+}
+
+.el-menu {
+  border-right: none !important;
+}
+
+.el-menu-item.is-active {
+  background-color: rgba(79, 70, 229, 0.1) !important;
+  color: var(--color-primary) !important;
+}
+
+.el-pagination {
+  gap: var(--spacing-2) !important;
+}
+
+.el-pagination button {
+  border-radius: var(--radius-base) !important;
+}
+
+.el-pagination .el-pager li {
+  border-radius: var(--radius-base) !important;
+}
+
+.el-pagination .el-pager li.is-active {
+  background-color: var(--color-primary) !important;
+}
+
+.el-form-item__label {
+  font-weight: var(--font-weight-medium) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+.el-select-dropdown__item.is-selected {
+  background-color: rgba(79, 70, 229, 0.1) !important;
+  color: var(--color-primary) !important;
+  font-weight: var(--font-weight-medium) !important;
+}

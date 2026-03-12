@@ -1,0 +1,332 @@
+/* 淡入淡出动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--duration-base) var(--ease-in-out);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 滑动淡入淡出 */
+.slide-fade-enter-active {
+  transition: all var(--duration-slow) var(--ease-out);
+}
+
+.slide-fade-leave-active {
+  transition: all var(--duration-base) var(--ease-in);
+}
+
+.slide-fade-enter-from {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.slide-fade-leave-to {
+  transform: translateY(10px);
+  opacity: 0;
+}
+
+/* 缩放淡入淡出 */
+.zoom-fade-enter-active,
+.zoom-fade-leave-active {
+  transition: all var(--duration-base) var(--ease-in-out);
+}
+
+.zoom-fade-enter-from {
+  transform: scale(0.95);
+  opacity: 0;
+}
+
+.zoom-fade-leave-to {
+  transform: scale(1.05);
+  opacity: 0;
+}
+
+/* 弹跳效果 */
+.bounce-enter-active {
+  animation: bounce-in var(--duration-slow) var(--ease-bounce);
+}
+
+.bounce-leave-active {
+  animation: bounce-in var(--duration-slow) var(--ease-bounce) reverse;
+}
+
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 从左侧滑入 */
+.slide-in-left-enter-active,
+.slide-in-left-leave-active {
+  transition: all var(--duration-base) var(--ease-in-out);
+}
+
+.slide-in-left-enter-from {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.slide-in-left-leave-to {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+/* 从右侧滑入 */
+.slide-in-right-enter-active,
+.slide-in-right-leave-active {
+  transition: all var(--duration-base) var(--ease-in-out);
+}
+
+.slide-in-right-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.slide-in-right-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* 从上方滑入 */
+.slide-in-top-enter-active,
+.slide-in-top-leave-active {
+  transition: all var(--duration-base) var(--ease-in-out);
+}
+
+.slide-in-top-enter-from {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+.slide-in-top-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+/* 从下方滑入 */
+.slide-in-bottom-enter-active,
+.slide-in-bottom-leave-active {
+  transition: all var(--duration-base) var(--ease-in-out);
+}
+
+.slide-in-bottom-enter-from {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.slide-in-bottom-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+/* 脉冲动画 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* 旋转动画 */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* 弹跳动画 */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+/* 摇晃动画 */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.5s;
+}
+
+/* 心跳动画 */
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.1);
+  }
+  28% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.1);
+  }
+  70% {
+    transform: scale(1);
+  }
+}
+
+.animate-heartbeat {
+  animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+/* 渐变背景动画 */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* 打字机效果 */
+@keyframes typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes blink-caret {
+  from, to {
+    border-color: transparent;
+  }
+  50% {
+    border-color: var(--color-primary);
+  }
+}
+
+.typing-effect {
+  overflow: hidden;
+  border-right: 2px solid var(--color-primary);
+  white-space: nowrap;
+  animation: typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite;
+}
+
+/* 悬停效果 */
+.hover-lift {
+  transition: transform var(--duration-fast) var(--ease-in-out),
+              box-shadow var(--duration-fast) var(--ease-in-out);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.hover-scale {
+  transition: transform var(--duration-fast) var(--ease-in-out);
+}
+
+.hover-scale:hover {
+  transform: scale(1.05);
+}
+
+.hover-glow {
+  transition: box-shadow var(--duration-fast) var(--ease-in-out);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(79, 70, 229, 0.3);
+}
+
+/* 加载骨架屏动画 */
+@keyframes skeleton-loading {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 0px,
+    var(--color-bg-secondary) 40px,
+    var(--color-bg-tertiary) 80px
+  );
+  background-size: 200px 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+/* 波纹效果 */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s ease, height 0.6s ease;
+}
+
+.ripple:active::after {
+  width: 300px;
+  height: 300px;
+}

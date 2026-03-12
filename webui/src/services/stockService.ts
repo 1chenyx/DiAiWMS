@@ -8,8 +8,9 @@ export interface Stock extends BaseEntity {
   sku_id: number
   sku_code: string
   sku_name: string
+  spu_name: string
   goods_location_id: number
-  goods_location_name: string
+  warehouse_location_name: string
   location_code?: string
   qty: number
   qty_available?: number
@@ -17,10 +18,16 @@ export interface Stock extends BaseEntity {
   is_freeze: boolean
   goods_owner_id: number
   goods_owner_name: string
-  warehouse_name?: string
-  batch_no?: string
-  expiry_date?: number
-  putaway_date?: number
+  warehouse_id: number
+  warehouse_name: string
+  warehouse_area_id: number
+  warehouse_area_name: string
+  batch_no: string
+  production_date: number
+  expiry_date: number
+  putaway_date: number
+  price: number
+  series_number: string
 }
 
 export interface StockCreate {

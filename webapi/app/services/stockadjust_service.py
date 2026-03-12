@@ -62,7 +62,7 @@ class StockadjustService(TenantAwareService[StockadjustRepository, Stockadjust])
                 putaway_date=entity.putaway_date,
                 sku_code=entity.sku.sku_code if entity.sku else '',
                 sku_name=entity.sku.sku_name if entity.sku else '',
-                location_code=entity.goods_location.location_code if entity.goods_location else ''
+                location_code=entity.goods_location.node_name if entity.goods_location else ''
             )
             for entity in entities
         ]
@@ -100,7 +100,7 @@ class StockadjustService(TenantAwareService[StockadjustRepository, Stockadjust])
             putaway_date=entity.putaway_date,
             sku_code=entity.sku.sku_code if entity.sku else '',
             sku_name=entity.sku.sku_name if entity.sku else '',
-            location_code=entity.goods_location.location_code if entity.goods_location else ''
+            location_code=entity.goods_location.node_name if entity.goods_location else ''
         )
 
     async def create(self, data: StockadjustCreate, current_user: CurrentUser) -> Tuple[int, str]:

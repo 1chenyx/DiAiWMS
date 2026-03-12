@@ -33,14 +33,14 @@
       
       <el-table :data="stockList" style="width: 100%" v-loading="loading">
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="sku_code" label="SKU编码" />
-        <el-table-column prop="sku_name" label="SKU名称" />
-        <el-table-column prop="warehouse_name" label="仓库" />
-        <el-table-column prop="location_code" label="库位编码" />
-        <el-table-column prop="goods_owner_name" label="货主" />
-        <el-table-column prop="qty" label="库存数量" />
-        <el-table-column prop="qty_available" label="可用数量" />
-        <el-table-column prop="qty_frozen" label="冻结数量" />
+        <el-table-column prop="sku_code" label="SKU编码" width="120" />
+        <el-table-column prop="sku_name" label="SKU名称" width="150" />
+        <el-table-column prop="spu_name" label="SPU名称" width="150" />
+        <el-table-column prop="warehouse_name" label="仓库" width="120" />
+        <el-table-column prop="warehouse_area_name" label="库区" width="120" />
+        <el-table-column prop="warehouse_location_name" label="库位" width="120" />
+        <el-table-column prop="batch_no" label="批次号" width="120" />
+        <el-table-column prop="qty" label="库存数量" width="100" />
         <el-table-column prop="is_freeze" label="是否冻结" width="100">
           <template #default="scope">
             <el-tag :type="scope.row.is_freeze ? 'danger' : 'success'">
@@ -48,13 +48,22 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="batch_no" label="批次号" />
-        <el-table-column prop="create_time" label="创建时间">
+        <el-table-column prop="production_date" label="生产日期" width="120">
+          <template #default="scope">
+            {{ formatTimestamp(scope.row.production_date) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="putaway_date" label="上架日期" width="120">
+          <template #default="scope">
+            {{ formatTimestamp(scope.row.putaway_date) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="create_time" label="创建时间" width="160">
           <template #default="scope">
             {{ formatTimestamp(scope.row.create_time) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right">
+        <el-table-column label="操作" fixed="right" width="180">
           <template #default="scope">
             <el-button type="primary" size="small" @click="handleViewDetail(scope.row)">
               <el-icon><View /></el-icon> 详情
@@ -91,12 +100,17 @@
       <el-descriptions :column="2" border v-if="selectedStock">
         <el-descriptions-item label="SKU编码">{{ selectedStock.sku_code }}</el-descriptions-item>
         <el-descriptions-item label="SKU名称">{{ selectedStock.sku_name }}</el-descriptions-item>
+        <el-descriptions-item label="SPU名称">{{ selectedStock.spu_name }}</el-descriptions-item>
         <el-descriptions-item label="仓库">{{ selectedStock.warehouse_name }}</el-descriptions-item>
-        <el-descriptions-item label="库位编码">{{ selectedStock.location_code }}</el-descriptions-item>
-        <el-descriptions-item label="货主">{{ selectedStock.goods_owner_name }}</el-descriptions-item>
+        <el-descriptions-item label="库区">{{ selectedStock.warehouse_area_name }}</el-descriptions-item>
+        <el-descriptions-item label="库位">{{ selectedStock.warehouse_location_name }}</el-descriptions-item>
+        <el-descriptions-item label="批次号">{{ selectedStock.batch_no }}</el-descriptions-item>
         <el-descriptions-item label="库存数量">{{ selectedStock.qty }}</el-descriptions-item>
-        <el-descriptions-item label="可用数量">{{ selectedStock.qty_available }}</el-descriptions-item>
-        <el-descriptions-item label="冻结数量">{{ selectedStock.qty_frozen }}</el-descriptions-item>
+        <el-descriptions-item label="价格">{{ selectedStock.price }}</el-descriptions-item>
+        <el-descriptions-item label="序列号">{{ selectedStock.series_number }}</el-descriptions-item>
+        <el-descriptions-item label="生产日期">{{ formatTimestamp(selectedStock.production_date) }}</el-descriptions-item>
+        <el-descriptions-item label="上架日期">{{ formatTimestamp(selectedStock.putaway_date) }}</el-descriptions-item>
+        <el-descriptions-item label="过期日期">{{ formatTimestamp(selectedStock.expiry_date) }}</el-descriptions-item>
         <el-descriptions-item label="是否冻结">
           <el-tag :type="selectedStock.is_freeze ? 'danger' : 'success'">
             {{ selectedStock.is_freeze ? '是' : '否' }}
@@ -133,13 +147,15 @@ const searchForm = reactive({
   goods_owner_id: ''
 })
 
-const { pagination, handleSizeChange, handleCurrentChange, setTotal } = usePagination()
-const { confirmAction } = useConfirm()
-
 const stockList = ref<Stock[]>([])
 
 const detailDialogVisible = ref(false)
 const selectedStock = ref<Stock | null>(null)
+
+const { pagination, handleSizeChange, handleCurrentChange, setTotal } = usePagination({
+  onPageChange: () => fetchStockList()
+})
+const { confirmAction } = useConfirm()
 
 const fetchStockList = async () => {
   loading.value = true

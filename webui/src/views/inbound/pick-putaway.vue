@@ -159,7 +159,7 @@
                   v-model="scope.row.selected_location_id"
                   :warehouse-id="selectedPickPutaway.warehouse_id"
                   :node-type="3"
-                  @change="(val: number, info: any) => handleLocationChange(scope.row, val, info)"
+                  @change="(val: number | undefined, info: any) => handleLocationChange(scope.row, val, info)"
                 />
               </template>
             </el-table-column>
@@ -170,7 +170,8 @@
                 <el-input-number
                   v-model="scope.row.putaway_input_qty"
                   :min="1"
-                  :max="scope.row.qty - (scope.row.putaway_qty || 0)"
+                  :max="Math.max(1, scope.row.qty - (scope.row.putaway_qty || 0))"
+                  :disabled="scope.row.qty - (scope.row.putaway_qty || 0) <= 0"
                   size="small"
                   style="width: 100%"
                   placeholder="数量"
@@ -224,9 +225,6 @@ const searchForm = reactive({
   pick_putaway_status: undefined as number | undefined
 })
 
-const { pagination, handleSizeChange, handleCurrentChange, setTotal } = usePagination()
-const { confirmDelete, confirmAction } = useConfirm()
-
 const pickPutawayList = ref<InboundPickPutawayViewModel[]>([])
 const orderList = ref<InboundOrderViewModel[]>([])
 
@@ -244,6 +242,11 @@ const formRules = reactive<FormRules>({
 const detailDialogVisible = ref(false)
 const selectedPickPutaway = ref<InboundPickPutawayViewModel | null>(null)
 const userStore = useUserStore()
+
+const { pagination, handleSizeChange, handleCurrentChange, setTotal } = usePagination({
+  onPageChange: () => fetchPickPutawayList()
+})
+const { confirmDelete, confirmAction } = useConfirm()
 
 const fetchPickPutawayList = async () => {
   loading.value = true
@@ -397,7 +400,7 @@ const handlePutawayItem = async (item: any) => {
   }
 }
 
-const handleLocationChange = (item: any, _val: number, info: any) => {
+const handleLocationChange = (item: any, _val: number | undefined, info: any) => {
   if (info) {
     item.selected_warehouse_id = info.warehouseId
     item.selected_warehouse_name = info.warehouseName

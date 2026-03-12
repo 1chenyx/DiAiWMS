@@ -164,7 +164,7 @@ class InboundReceiptService(TenantAwareService[InboundReceiptRepository, Inbound
                 location_query = select(WarehouseLocation).where(WarehouseLocation.id == entity.goods_location_id)
                 location_result = await self._db_session.execute(location_query)
                 location = location_result.scalar_one_or_none()
-                goods_location_code = location.location_code if location else None
+                goods_location_code = location.node_name if location else None
 
             items.append(InboundReceiptItemViewModel(
                 id=entity.id,
