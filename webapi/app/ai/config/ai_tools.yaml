@@ -1,0 +1,283 @@
+# AI工具配置文件
+# 定义系统支持的所有AI工具
+
+tools:
+  # 数据查询类工具
+  - code: "stock_query"
+    name: "库存查询"
+    category: "data_query"
+    description: "查询库存信息，包括SKU、数量、位置等"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        enable_realtime:
+          type: "boolean"
+          description: "是否启用实时查询"
+          default: true
+        cache_ttl:
+          type: "integer"
+          description: "缓存时间(秒)"
+          default: 60
+
+  - code: "inbound_query"
+    name: "入库查询"
+    category: "data_query"
+    description: "查询入库订单和入库记录"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        default_status:
+          type: "string"
+          description: "默认查询状态"
+          default: "all"
+
+  - code: "outbound_query"
+    name: "出库查询"
+    category: "data_query"
+    description: "查询出库订单和出库记录"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        default_status:
+          type: "string"
+          description: "默认查询状态"
+          default: "all"
+
+  - code: "sku_query"
+    name: "SKU查询"
+    category: "data_query"
+    description: "查询SKU基本信息和属性"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        include_inactive:
+          type: "boolean"
+          description: "是否包含停用SKU"
+          default: false
+
+  - code: "warehouse_query"
+    name: "仓库查询"
+    category: "data_query"
+    description: "查询仓库、库区、库位信息"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        include_tree:
+          type: "boolean"
+          description: "是否返回树形结构"
+          default: true
+
+  # 数据操作类工具
+  - code: "stock_adjust"
+    name: "库存调整"
+    category: "data_operation"
+    description: "调整库存数量，包括盘点、报损、报溢等"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        require_approval:
+          type: "boolean"
+          description: "是否需要审批"
+          default: true
+        max_adjust_amount:
+          type: "integer"
+          description: "最大调整数量"
+          default: 1000
+
+  - code: "stock_move"
+    name: "库存移动"
+    category: "data_operation"
+    description: "执行库存移库操作"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        auto_assign_location:
+          type: "boolean"
+          description: "是否自动分配目标库位"
+          default: false
+
+  - code: "inbound_create"
+    name: "创建入库单"
+    category: "data_operation"
+    description: "创建新的入库订单"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        auto_confirm:
+          type: "boolean"
+          description: "是否自动确认"
+          default: false
+
+  - code: "outbound_create"
+    name: "创建出库单"
+    category: "data_operation"
+    description: "创建新的出库订单"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        auto_allocate:
+          type: "boolean"
+          description: "是否自动分配库存"
+          default: true
+
+  # 报表分析类工具
+  - code: "inventory_report"
+    name: "库存报表"
+    category: "report_analysis"
+    description: "生成库存统计报表和分析"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        include_charts:
+          type: "boolean"
+          description: "是否包含图表"
+          default: true
+        report_format:
+          type: "string"
+          description: "报表格式"
+          enum: ["json", "excel", "pdf"]
+          default: "json"
+
+  - code: "performance_analysis"
+    name: "绩效分析"
+    category: "report_analysis"
+    description: "分析仓库作业绩效和效率"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        time_range:
+          type: "string"
+          description: "时间范围"
+          enum: ["day", "week", "month", "quarter", "year"]
+          default: "month"
+
+  - code: "trend_analysis"
+    name: "趋势分析"
+    category: "report_analysis"
+    description: "分析库存和作业趋势"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        forecast_days:
+          type: "integer"
+          description: "预测天数"
+          default: 30
+
+  # 外部集成类工具
+  - code: "erp_integration"
+    name: "ERP集成"
+    category: "external_integration"
+    description: "与ERP系统进行数据同步"
+    is_active: false
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        sync_interval:
+          type: "integer"
+          description: "同步间隔(分钟)"
+          default: 60
+        api_endpoint:
+          type: "string"
+          description: "ERP API端点"
+          default: ""
+
+  - code: "wms_integration"
+    name: "WMS集成"
+    category: "external_integration"
+    description: "与其他WMS系统进行数据交换"
+    is_active: false
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        sync_mode:
+          type: "string"
+          description: "同步模式"
+          enum: ["realtime", "batch"]
+          default: "batch"
+
+  # 系统管理类工具
+  - code: "user_management"
+    name: "用户管理"
+    category: "system_management"
+    description: "管理系统用户和权限"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        require_approval:
+          type: "boolean"
+          description: "是否需要审批"
+          default: true
+
+  - code: "system_config"
+    name: "系统配置"
+    category: "system_management"
+    description: "查看和修改系统配置"
+    is_active: true
+    is_system: true
+    config_schema:
+      type: "object"
+      properties:
+        allow_sensitive_ops:
+          type: "boolean"
+          description: "是否允许敏感操作"
+          default: false
+
+# 工具分类定义
+categories:
+  - code: "data_query"
+    name: "数据查询"
+    description: "查询各类业务数据"
+    icon: "search"
+    color: "#1890ff"
+
+  - code: "data_operation"
+    name: "数据操作"
+    description: "执行业务操作"
+    icon: "tool"
+    color: "#52c41a"
+
+  - code: "report_analysis"
+    name: "报表分析"
+    description: "生成报表和分析数据"
+    icon: "bar-chart"
+    color: "#722ed1"
+
+  - code: "external_integration"
+    name: "外部集成"
+    description: "与外部系统集成"
+    icon: "api"
+    color: "#fa8c16"
+
+  - code: "system_management"
+    name: "系统管理"
+    description: "系统配置和管理"
+    icon: "setting"
+    color: "#eb2f96"

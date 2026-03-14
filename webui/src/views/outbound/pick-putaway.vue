@@ -82,10 +82,18 @@
       </div>
     </el-card>
     
-    <el-dialog v-model="dialogVisible" title="创建拣货单" width="600px">
+    <el-dialog v-model="dialogVisible" title="创建拣货单" width="800px">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
-        <el-form-item label="出库订单" prop="outbound_order_id">
-          <el-select v-model="formData.outbound_order_id" placeholder="请选择出库订单" style="width: 100%" filterable>
+        <el-form-item label="出库订单" prop="order_ids">
+          <el-select 
+            v-model="formData.order_ids" 
+            placeholder="请选择出库订单（可多选）" 
+            style="width: 100%" 
+            filterable
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+          >
             <el-option 
               v-for="order in orderList" 
               :key="order.id" 
@@ -93,6 +101,9 @@
               :value="order.id" 
             />
           </el-select>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="formData.remark" type="textarea" :rows="3" placeholder="请输入备注" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -103,66 +114,61 @@
       </template>
     </el-dialog>
     
-    <el-dialog v-model="detailDialogVisible" title="拣货单详情" width="1200px">
+    <el-dialog v-model="detailDialogVisible" title="拣货单详情" width="1400px">
       <div class="pick-putaway-detail" v-if="selectedPickPutaway">
         <el-descriptions :column="2" border class="pick-putaway-header">
           <el-descriptions-item label="拣货单号">{{ selectedPickPutaway.pick_putaway_no }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{ getStatusText(selectedPickPutaway.pick_putaway_status) }}</el-descriptions-item>
-          <el-descriptions-item label="出库订单号">{{ selectedPickPutaway.order_no }}</el-descriptions-item>
+          <el-descriptions-item label="出库订单号" :span="2">{{ selectedPickPutaway.order_nos || selectedPickPutaway.order_no }}</el-descriptions-item>
           <el-descriptions-item label="客户">{{ selectedPickPutaway.customer_name }}</el-descriptions-item>
           <el-descriptions-item label="仓库">{{ selectedPickPutaway.warehouse_name }}</el-descriptions-item>
           <el-descriptions-item label="拣货人">{{ selectedPickPutaway.picker }}</el-descriptions-item>
+          <el-descriptions-item label="拣货时间">{{ selectedPickPutaway.pick_time }}</el-descriptions-item>
           <el-descriptions-item label="总数量">{{ selectedPickPutaway.total_qty }}</el-descriptions-item>
           <el-descriptions-item label="已拣货数量">{{ selectedPickPutaway.total_picked_qty }}</el-descriptions-item>
-          <el-descriptions-item label="拣货时间">{{ selectedPickPutaway.pick_time }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ selectedPickPutaway.create_time }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间" :span="2">{{ selectedPickPutaway.create_time }}</el-descriptions-item>
         </el-descriptions>
         
         <div v-if="selectedPickPutaway.items && selectedPickPutaway.items.length > 0">
-          <h4>商品明细</h4>
+          <h4>拣货指引</h4>
+          <el-alert
+            title="拣货说明"
+            type="info"
+            :closable="false"
+            style="margin-bottom: 15px"
+          >
+            <template #default>
+              <div>1. 请按照库位顺序依次拣货，以优化拣货路径</div>
+              <div>2. 拣货时请核对商品编码、批次号和生产日期</div>
+              <div>3. 同一商品在不同库位的库存已按先进先出原则分配</div>
+            </template>
+          </el-alert>
+          
           <el-table :data="selectedPickPutaway.items" style="width: 100%" border>
+            <el-table-column type="index" label="序号" width="60" />
+            <el-table-column prop="warehouse_area_name" label="库区" width="120" />
+            <el-table-column prop="goods_location_code" label="库位" width="150" />
             <el-table-column prop="sku_code" label="SKU编码" width="120" />
             <el-table-column prop="sku_name" label="SKU名称" width="150" />
             <el-table-column prop="spu_name" label="SPU名称" width="150" />
+            <el-table-column prop="batch_no" label="批次号" width="120" />
+            <el-table-column prop="production_date" label="生产日期" width="120">
+              <template #default="scope">
+                {{ scope.row.production_date ? new Date(scope.row.production_date * 1000).toLocaleDateString() : '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="expiry_date" label="过期日期" width="120">
+              <template #default="scope">
+                {{ scope.row.expiry_date ? new Date(scope.row.expiry_date * 1000).toLocaleDateString() : '-' }}
+              </template>
+            </el-table-column>
             <el-table-column prop="qty" label="应拣货数量" width="100" />
             <el-table-column prop="picked_qty" label="已拣货数量" width="100" />
-            <el-table-column prop="goods_location_code" label="当前库位" width="150" />
-            <el-table-column label="选择库位" width="250" v-if="selectedPickPutaway.pick_putaway_status === 1">
+            <el-table-column label="拣货状态" width="100">
               <template #default="scope">
-                <el-tree-select
-                  v-model="scope.row.selected_location_id"
-                  :data="locationTree"
-                  :props="treeProps"
-                  placeholder="请选择库位"
-                  filterable
-                  check-strictly
-                  style="width: 100%"
-                  @change="(val: number) => handleLocationChange(scope.row, val)"
-                />
-              </template>
-            </el-table-column>
-            <el-table-column label="本次拣货数量" width="120" v-if="selectedPickPutaway.pick_putaway_status === 1">
-              <template #default="scope">
-                <el-input-number
-                  v-model="scope.row.pick_input_qty"
-                  :min="1"
-                  :max="scope.row.qty - (scope.row.picked_qty || 0)"
-                  size="small"
-                  style="width: 100%"
-                  placeholder="数量"
-                />
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="100" v-if="selectedPickPutaway.pick_putaway_status === 1">
-              <template #default="scope">
-                <el-button 
-                  type="primary" 
-                  size="small" 
-                  @click="handlePickItem(scope.row)"
-                  :disabled="!scope.row.selected_location_id || !scope.row.pick_input_qty"
-                >
-                  确认拣货
-                </el-button>
+                <el-tag :type="scope.row.picked_qty >= scope.row.qty ? 'success' : 'warning'">
+                  {{ scope.row.picked_qty >= scope.row.qty ? '已完成' : '未完成' }}
+                </el-tag>
               </template>
             </el-table-column>
           </el-table>
@@ -179,12 +185,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Plus, View, Delete, Select, Check } from '@element-plus/icons-vue'
+import { Plus, View, Delete } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { outboundPickPutawayService, type OutboundPickPutawayViewModel } from '@/services/outboundPickPutawayService'
 import { outboundOrderService, type OutboundOrderViewModel } from '@/services/outboundOrderService'
-import { warehouseLocationService } from '@/services/warehouseLocationService'
 import { useUserStore } from '@/store/user'
 
 const loading = ref(false)
@@ -204,25 +209,28 @@ const pagination = reactive({
 
 const pickPutawayList = ref<OutboundPickPutawayViewModel[]>([])
 const orderList = ref<OutboundOrderViewModel[]>([])
-const locationTree = ref<any[]>([])
-
-const treeProps = {
-  value: 'id',
-  label: 'node_name',
-  children: 'children',
-  disabled: (data: any) => {
-    return data.node_type !== 3
-  }
-}
 
 const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
 const formData = reactive({
-  outbound_order_id: undefined as number | undefined
+  order_ids: [] as number[],
+  remark: ''
 })
 
 const formRules = reactive<FormRules>({
-  outbound_order_id: [{ required: true, message: '请选择出库订单', trigger: 'change' }]
+  order_ids: [
+    { 
+      required: true, 
+      validator: (rule: any, value: any, callback: any) => {
+        if (!value || value.length === 0) {
+          callback(new Error('请至少选择一个出库订单'))
+        } else {
+          callback()
+        }
+      }, 
+      trigger: 'change' 
+    }
+  ]
 })
 
 const detailDialogVisible = ref(false)
@@ -285,19 +293,26 @@ const handleCurrentChange = (current: number) => {
 }
 
 const handleAdd = () => {
-  formData.outbound_order_id = undefined
+  formData.order_ids = []
+  formData.remark = ''
   dialogVisible.value = true
 }
 
 const handleSubmit = async () => {
   if (!formRef.value) return
   
+  if (formData.order_ids.length === 0) {
+    ElMessage.warning('请至少选择一个出库订单')
+    return
+  }
+  
   try {
     await formRef.value.validate()
     submitting.value = true
     
     await outboundPickPutawayService.create({
-      outbound_order_id: formData.outbound_order_id!
+      order_ids: formData.order_ids,
+      remark: formData.remark
     })
     
     ElMessage.success('创建成功')
@@ -313,17 +328,7 @@ const handleSubmit = async () => {
 const handleViewDetail = async (row: OutboundPickPutawayViewModel) => {
   try {
     const result = await outboundPickPutawayService.getById(row.id)
-    result.items?.forEach((item: any) => {
-      item.selected_location_id = item.goods_location_id
-      item.pick_input_qty = 1
-    })
     selectedPickPutaway.value = result
-    
-    if (result.warehouse_id) {
-      const treeResult = await warehouseLocationService.getTreeByWarehouse(result.warehouse_id)
-      locationTree.value = [treeResult]
-    }
-    
     detailDialogVisible.value = true
   } catch (error: any) {
     ElMessage.error(error.message || '获取详情失败')
@@ -350,78 +355,6 @@ const handleStartPick = async (row: OutboundPickPutawayViewModel) => {
     if (error !== 'cancel') {
       ElMessage.error(error.message || '操作失败')
     }
-  }
-}
-
-const handlePickItem = async (item: any) => {
-  try {
-    if (!item.selected_location_id) {
-      ElMessage.warning('请先选择库位')
-      return
-    }
-    
-    if (!item.pick_input_qty || item.pick_input_qty <= 0) {
-      ElMessage.warning('请输入拣货数量')
-      return
-    }
-    
-    const remainingQty = item.qty - (item.picked_qty || 0)
-    if (item.pick_input_qty > remainingQty) {
-      ElMessage.warning(`拣货数量不能超过剩余数量 ${remainingQty}`)
-      return
-    }
-    
-    const pickedQty = (item.picked_qty || 0) + item.pick_input_qty
-    await outboundPickPutawayService.updateItem({
-      id: item.id,
-      picked_qty: pickedQty,
-      goods_location_id: item.selected_location_id,
-      picker_id: userStore.userInfo?.user_id || 0,
-      picker: userStore.userInfo?.user_name || '系统用户',
-      pick_time: Math.floor(Date.now() / 1000)
-    })
-    
-    ElMessage.success('拣货成功')
-    item.picked_qty = pickedQty
-    item.goods_location_id = item.selected_location_id
-    item.pick_input_qty = 1
-  } catch (error: any) {
-    ElMessage.error(error.message || '拣货失败')
-  }
-}
-
-const handleLocationChange = (item: any, val: number) => {
-  if (!locationTree.value || locationTree.value.length === 0) return
-  
-  const findLocationInfo = (nodes: any[], val: number, path: any[] = []): any => {
-    for (const node of nodes) {
-      if (node.id === val) {
-        return { ...node, path }
-      }
-      if (node.children && node.children.length > 0) {
-        const result = findLocationInfo(node.children, val, [...path, node])
-        if (result) return result
-      }
-    }
-    return null
-  }
-  
-  const locationInfo = findLocationInfo(locationTree.value, val)
-  if (locationInfo) {
-    const path = locationInfo.path || []
-    let warehouseName = ''
-    let areaName = ''
-    
-    for (const node of path) {
-      if (node.node_type === 1) {
-        warehouseName = node.node_name
-      } else if (node.node_type === 2) {
-        areaName = node.node_name
-      }
-    }
-    
-    item.selected_warehouse_name = warehouseName
-    item.selected_area_name = areaName
   }
 }
 

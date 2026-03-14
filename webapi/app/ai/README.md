@@ -1,384 +1,191 @@
-# AI功能模块说明
+# AI配置管理系统
 
-## 概述
+## 快速开始
 
-AI功能模块提供了完整的AI配置和执行框架，支持接入不同供应商的不同AI模型，使用LangGraph框架构建工作流。
-
-## 架构设计
-
-### 1. 数据库模型
-
-#### AIProvider (AI提供商表)
-存储不同AI服务提供商的配置信息，如OpenAI、Anthropic、Azure等。
-
-主要字段：
-- `provider_name`: 提供商名称
-- `provider_code`: 提供商代码（唯一标识）
-- `api_key`: API密钥
-- `api_endpoint`: API端点URL
-- `is_active`: 是否启用
-- `priority`: 优先级
-- `config`: 其他配置参数（JSON格式）
-
-#### AIModel (AI模型表)
-存储不同AI模型的配置信息，如gpt-4、claude-3等。
-
-主要字段：
-- `provider_id`: 关联的AI提供商ID
-- `model_name`: 模型名称
-- `model_code`: 模型代码（唯一标识）
-- `model_type`: 模型类型（chat、completion、embedding等）
-- `max_tokens`: 最大token数
-- `temperature`: 温度参数
-- `top_p`: top_p参数
-- `is_active`: 是否启用
-- `is_default`: 是否为默认模型
-
-#### AITask (AI任务表)
-记录AI执行任务的日志和状态。
-
-主要字段：
-- `task_id`: 任务ID（UUID）
-- `task_type`: 任务类型
-- `provider_id`: 使用的AI提供商ID
-- `model_id`: 使用的AI模型ID
-- `status`: 任务状态（pending、running、completed、failed）
-- `input_data`: 输入数据（JSON格式）
-- `output_data`: 输出数据（JSON格式）
-- `token_usage`: token使用情况（JSON格式）
-
-### 2. 缓存管理
-
-使用Redis缓存AI配置，提高查询性能：
-
-- `ai:provider:{id}`: AI提供商缓存
-- `ai:model:{id}`: AI模型缓存
-- `ai:model:code:{tenant_id}:{model_code}`: 根据代码缓存AI模型
-- `ai:default_model:{tenant_id}`: 默认AI模型缓存
-- `ai:provider:active:{tenant_id}`: 启用的AI提供商列表缓存
-
-### 3. AI执行框架
-
-#### BaseAIProvider (AI提供商抽象基类)
-所有AI提供商实现类都应继承此类，实现`execute`和`get_model_config`方法。
-
-#### OpenAIProvider (OpenAI提供商实现)
-实现了OpenAI API的调用，支持GPT系列模型。
-
-#### AnthropicProvider (Anthropic提供商实现)
-实现了Anthropic API的调用，支持Claude系列模型。
-
-#### AIProviderFactory (AI提供商工厂)
-根据提供商代码创建对应的提供商实例，支持动态注册新的提供商。
-
-#### AIExecutor (AI执行器)
-负责AI任务的执行和管理，包括：
-- 任务创建和状态管理
-- 模型选择和配置加载
-- 提供商实例化和执行
-- 结果返回和错误处理
-
-#### LangGraphWorkflow (LangGraph工作流基类)
-使用LangGraph构建AI工作流的基础框架，预留了扩展接口。
-
-#### ChatWorkflow (聊天工作流)
-简单的聊天对话工作流实现。
-
-## API接口
-
-### AI提供商管理
-
-#### 获取AI提供商
-```
-GET /api/v1/ai/provider?id={id}
-```
-
-#### 获取AI提供商列表
-```
-GET /api/v1/ai/provider/list
-```
-
-#### 获取启用的AI提供商
-```
-GET /api/v1/ai/provider/active
-```
-
-#### 创建AI提供商
-```
-POST /api/v1/ai/provider
-Content-Type: application/json
-
-{
-  "provider_name": "OpenAI",
-  "provider_code": "openai",
-  "api_key": "sk-xxx",
-  "api_endpoint": "https://api.openai.com/v1",
-  "description": "OpenAI API",
-  "is_active": true,
-  "priority": 0,
-  "config": {}
-}
-```
-
-#### 更新AI提供商
-```
-PUT /api/v1/ai/provider/{id}
-Content-Type: application/json
-
-{
-  "api_key": "sk-new-xxx",
-  "is_active": false
-}
-```
-
-#### 删除AI提供商
-```
-DELETE /api/v1/ai/provider/{id}
-```
-
-### AI模型管理
-
-#### 获取AI模型
-```
-GET /api/v1/ai/model?id={id}
-```
-
-#### 获取AI模型列表
-```
-GET /api/v1/ai/model/list
-```
-
-#### 获取默认AI模型
-```
-GET /api/v1/ai/model/default
-```
-
-#### 创建AI模型
-```
-POST /api/v1/ai/model
-Content-Type: application/json
-
-{
-  "provider_id": 1,
-  "model_name": "GPT-4",
-  "model_code": "gpt-4",
-  "model_type": "chat",
-  "max_tokens": 4096,
-  "temperature": 70,
-  "top_p": 90,
-  "description": "GPT-4模型",
-  "is_active": true,
-  "is_default": true,
-  "config": {}
-}
-```
-
-#### 更新AI模型
-```
-PUT /api/v1/ai/model/{id}
-Content-Type: application/json
-
-{
-  "max_tokens": 8192,
-  "is_default": false
-}
-```
-
-#### 删除AI模型
-```
-DELETE /api/v1/ai/model/{id}
-```
-
-### AI任务执行
-
-#### 执行AI任务
-```
-POST /api/v1/ai/execute
-Content-Type: application/json
-
-{
-  "task_type": "chat",
-  "model_code": "gpt-4",
-  "input_data": {
-    "messages": [
-      {"role": "user", "content": "你好"}
-    ]
-  },
-  "config": {}
-}
-```
-
-#### 获取AI任务结果
-```
-GET /api/v1/ai/task/{task_id}
-```
-
-#### AI聊天接口
-```
-POST /api/v1/ai/chat
-Content-Type: application/json
-
-{
-  "model_code": "gpt-4",
-  "input_data": {
-    "messages": [
-      {"role": "user", "content": "你好"}
-    ]
-  },
-  "config": {}
-}
-```
-
-## 使用示例
-
-### 1. 配置OpenAI提供商
-
-```python
-import requests
-
-# 创建OpenAI提供商
-response = requests.post(
-    "http://localhost:8000/api/v1/ai/provider",
-    json={
-        "provider_name": "OpenAI",
-        "provider_code": "openai",
-        "api_key": "sk-your-api-key",
-        "api_endpoint": "https://api.openai.com/v1",
-        "description": "OpenAI API",
-        "is_active": True,
-        "priority": 0
-    },
-    headers={"Authorization": "Bearer your-token"}
-)
-
-provider = response.json()
-provider_id = provider["data"]["id"]
-```
-
-### 2. 配置GPT-4模型
-
-```python
-# 创建GPT-4模型
-response = requests.post(
-    "http://localhost:8000/api/v1/ai/model",
-    json={
-        "provider_id": provider_id,
-        "model_name": "GPT-4",
-        "model_code": "gpt-4",
-        "model_type": "chat",
-        "max_tokens": 4096,
-        "temperature": 70,
-        "top_p": 90,
-        "description": "GPT-4模型",
-        "is_active": True,
-        "is_default": True
-    },
-    headers={"Authorization": "Bearer your-token"}
-)
-```
-
-### 3. 执行AI聊天
-
-```python
-# 执行聊天
-response = requests.post(
-    "http://localhost:8000/api/v1/ai/chat",
-    json={
-        "input_data": {
-            "messages": [
-                {"role": "user", "content": "你好，请介绍一下你自己"}
-            ]
-        }
-    },
-    headers={"Authorization": "Bearer your-token"}
-)
-
-result = response.json()
-if result["isSuccess"]:
-    output = result["data"]["output"]
-    print(output["content"])
-```
-
-## 扩展开发
-
-### 添加新的AI提供商
-
-1. 创建新的提供商类，继承`BaseAIProvider`：
-
-```python
-from app.ai.ai_executor import BaseAIProvider, AIProviderViewModel
-from typing import Dict, Any, Optional
-
-class CustomProvider(BaseAIProvider):
-    async def execute(
-        self,
-        model: AIModelViewModel,
-        input_data: Dict[str, Any],
-        config: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        # 实现自定义AI调用逻辑
-        pass
-    
-    def get_model_config(self, model: AIModelViewModel) -> Dict[str, Any]:
-        # 实现模型配置转换逻辑
-        pass
-```
-
-2. 注册新的提供商：
-
-```python
-from app.ai.ai_executor import AIProviderFactory
-
-AIProviderFactory.register_provider("custom", CustomProvider)
-```
-
-### 创建自定义工作流
-
-继承`LangGraphWorkflow`类并实现`execute_workflow`方法：
-
-```python
-from app.ai.ai_executor import LangGraphWorkflow
-from typing import Dict, Any, Optional
-from app.core.current_user import CurrentUser
-
-class CustomWorkflow(LangGraphWorkflow):
-    async def execute_workflow(
-        self,
-        input_data: Dict[str, Any],
-        current_user: Optional[CurrentUser] = None
-    ) -> Dict[str, Any]:
-        # 实现自定义工作流逻辑
-        # 可以使用LangGraph构建复杂的工作流
-        pass
-```
-
-## 数据库迁移
-
-执行数据库迁移以创建AI相关表：
+### 1. 运行数据库迁移
 
 ```bash
 cd d:\python\xm\DIAIWMS\webapi
 alembic upgrade head
 ```
 
-## 依赖安装
-
-安装AI相关依赖：
+### 2. 运行测试脚本
 
 ```bash
 cd d:\python\xm\DIAIWMS\webapi
-pip install -r requirements.txt
+python -m app.ai.test_ai_config
 ```
 
-主要依赖：
-- `langgraph>=0.2.0`: LangGraph工作流框架
-- `openai>=1.0.0`: OpenAI SDK
-- `anthropic>=0.40.0`: Anthropic SDK
+### 3. 启动Web服务
+
+```bash
+cd d:\python\xm\DIAIWMS\webapi
+python -m uvicorn app.main:app --reload
+```
+
+### 4. 访问API文档
+
+打开浏览器访问：http://localhost:8000/docs
+
+## 系统架构
+
+```
+webapi/app/ai/
+├── config/                    # 配置文件目录
+│   ├── llm_providers.yaml     # LLM服务商配置
+│   ├── ai_tools.yaml          # AI工具配置
+│   ├── ai_rules.yaml          # AI规则配置
+│   └── config_loader.py       # 配置加载器
+├── agent/                     # Agent模块
+│   ├── agent_pool_manager.py  # Agent池管理器
+│   └── __init__.py
+├── AI_CONFIG_GUIDE.md         # 使用指南
+├── test_ai_config.py          # 测试脚本
+└── __init__.py
+```
+
+## 核心功能
+
+### 1. 系统配置管理
+
+- **LLM服务商配置**：管理系统支持的所有LLM服务商
+- **工具配置**：管理系统提供的所有工具
+- **规则配置**：管理系统内置的所有规则
+
+### 2. 租户配置管理
+
+- **LLM配置**：租户可以配置自己的LLM服务
+- **工具激活**：租户可以激活需要的工具
+- **技能配置**：租户可以创建自定义技能
+- **规则配置**：租户可以添加自定义规则
+
+### 3. Agent池管理
+
+- **自动缓存**：Agent实例自动缓存和复用
+- **LRU淘汰**：自动淘汰最近最少使用的Agent
+- **空闲清理**：自动清理长时间未使用的Agent
+- **配置版本**：配置更新后自动清理旧Agent
+
+## API接口
+
+### 系统配置接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| /api/v1/ai/system/providers | GET | 获取所有服务商 |
+| /api/v1/ai/system/providers-with-models | GET | 获取服务商及模型 |
+| /api/v1/ai/system/tools | GET | 获取所有工具 |
+| /api/v1/ai/system/rules | GET | 获取所有规则 |
+
+### 租户配置接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| /api/v1/ai/config/llm/default | GET | 获取默认LLM配置 |
+| /api/v1/ai/config/llm | POST | 创建LLM配置 |
+| /api/v1/ai/config/tools/activate | POST | 激活工具 |
+| /api/v1/ai/config/skills | POST | 创建技能 |
+| /api/v1/ai/config/rules | POST | 创建规则 |
+
+### AI聊天接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| /api/v1/ai/chat/completions | POST | AI聊天补全 |
+| /api/v1/ai/chat/pool/stats | GET | 获取池统计信息 |
+| /api/v1/ai/chat/pool/clear | POST | 清理Agent池 |
+
+## 配置示例
+
+### 创建LLM配置
+
+```json
+POST /api/v1/ai/config/llm
+{
+  "config_name": "生产环境配置",
+  "provider_code": "openai",
+  "model_code": "gpt-4",
+  "api_key": "sk-xxx",
+  "api_endpoint": "https://api.openai.com/v1",
+  "temperature": "0.7",
+  "max_tokens": 2000,
+  "is_default": true,
+  "is_active": true
+}
+```
+
+### 激活工具
+
+```json
+POST /api/v1/ai/config/tools/activate
+{
+  "tool_code": "web_search",
+  "tool_name": "网络搜索",
+  "tool_category": "search",
+  "config": {
+    "search_engine": "google",
+    "max_results": 5
+  }
+}
+```
+
+### 创建技能
+
+```json
+POST /api/v1/ai/config/skills
+{
+  "skill_name": "代码审查",
+  "skill_type": "analysis",
+  "description": "审查代码质量",
+  "config": {
+    "prompt_template": "请审查以下代码..."
+  },
+  "is_active": true
+}
+```
+
+### 创建规则
+
+```json
+POST /api/v1/ai/config/rules
+{
+  "rule_name": "代码规范",
+  "rule_category": "professional",
+  "priority": 80,
+  "content": "所有代码必须符合PEP8规范",
+  "is_active": true
+}
+```
 
 ## 注意事项
 
-1. **API密钥安全**: AI提供商的API密钥存储在数据库中，建议在生产环境中使用加密存储
-2. **缓存更新**: 修改AI配置后，相关缓存会自动更新
-3. **租户隔离**: AI配置按租户隔离，不同租户的配置互不影响
-4. **默认模型**: 每个租户可以设置一个默认模型，执行任务时如果不指定模型则使用默认模型
-5. **任务日志**: 所有AI任务执行都会记录日志，便于追踪和调试
+1. **API密钥安全**：API密钥会加密存储，请妥善保管
+2. **配置版本**：修改配置后，旧的Agent实例会自动清理
+3. **内存管理**：系统会自动清理长时间未使用的Agent
+4. **租户隔离**：每个租户的配置和Agent实例完全隔离
+
+## 故障排查
+
+### 1. 数据库迁移失败
+
+检查数据库连接配置，确保数据库服务正常运行。
+
+### 2. Agent创建失败
+
+检查LLM配置是否正确，API密钥是否有效。
+
+### 3. 配置更新不生效
+
+手动清理Agent池：`POST /api/v1/ai/chat/pool/clear`
+
+## 后续开发
+
+1. 集成LangChain实现真实的AI Agent功能
+2. 支持流式输出（SSE）
+3. 实现工具自动调用
+4. 添加性能监控和告警
+5. 完善测试用例
+
+## 联系方式
+
+如有问题或建议，请联系开发团队。

@@ -326,12 +326,12 @@ const handleViewDetail = async (row: InboundPickPutawayViewModel) => {
     const result = await inboundPickPutawayService.getById(row.id)
     
     result.items?.forEach((item: any) => {
-      item.selected_location_id = item.goods_location_id
-      item.selected_warehouse_id = item.warehouse_id 
-      item.selected_warehouse_name = item.warehouse_name
-      item.selected_area_id = item.warehouse_area_id 
-      item.selected_area_name = item.warehouse_area_name
-      item.putaway_input_qty = 1
+      item.selected_location_id = undefined
+      item.selected_warehouse_id = undefined
+      item.selected_warehouse_name = ''
+      item.selected_area_id = undefined
+      item.selected_area_name = ''
+      item.putaway_input_qty = Math.max(1, item.qty - (item.putaway_qty || 0))
     })
     
     selectedPickPutaway.value = result
@@ -406,6 +406,11 @@ const handleLocationChange = (item: any, _val: number | undefined, info: any) =>
     item.selected_warehouse_name = info.warehouseName
     item.selected_area_id = info.areaId
     item.selected_area_name = info.areaName
+  } else {
+    item.selected_warehouse_id = undefined
+    item.selected_warehouse_name = ''
+    item.selected_area_id = undefined
+    item.selected_area_name = ''
   }
 }
 

@@ -1,0 +1,169 @@
+# AI服务商配置文件
+# 定义系统支持的所有AI服务商及其模型
+
+providers:
+  openai:
+    code: "openai"
+    name: "OpenAI"
+    description: "OpenAI官方API服务"
+    api_base: "https://api.openai.com/v1"
+    models:
+      - code: "gpt-4"
+        name: "GPT-4"
+        type: "chat"
+        max_tokens: 8192
+        description: "最强大的GPT-4模型，适合复杂任务"
+      - code: "gpt-4-turbo"
+        name: "GPT-4 Turbo"
+        type: "chat"
+        max_tokens: 128000
+        description: "GPT-4的优化版本，更快更便宜"
+      - code: "gpt-3.5-turbo"
+        name: "GPT-3.5 Turbo"
+        type: "chat"
+        max_tokens: 16385
+        description: "快速且经济的对话模型"
+      - code: "gpt-4-vision-preview"
+        name: "GPT-4 Vision"
+        type: "chat"
+        max_tokens: 128000
+        description: "支持图像理解的GPT-4模型"
+
+  anthropic:
+    code: "anthropic"
+    name: "Anthropic"
+    description: "Anthropic Claude API服务"
+    api_base: "https://api.anthropic.com/v1"
+    models:
+      - code: "claude-3-opus-20240229"
+        name: "Claude 3 Opus"
+        type: "chat"
+        max_tokens: 200000
+        description: "Anthropic最强大的模型"
+      - code: "claude-3-sonnet-20240229"
+        name: "Claude 3 Sonnet"
+        type: "chat"
+        max_tokens: 200000
+        description: "平衡性能和速度的模型"
+      - code: "claude-3-haiku-20240307"
+        name: "Claude 3 Haiku"
+        type: "chat"
+        max_tokens: 200000
+        description: "快速响应的轻量级模型"
+
+  azure:
+    code: "azure"
+    name: "Azure OpenAI"
+    description: "微软Azure OpenAI服务"
+    api_base: ""
+    models:
+      - code: "gpt-4"
+        name: "GPT-4 (Azure)"
+        type: "chat"
+        max_tokens: 8192
+        description: "Azure部署的GPT-4模型"
+      - code: "gpt-35-turbo"
+        name: "GPT-3.5 Turbo (Azure)"
+        type: "chat"
+        max_tokens: 16385
+        description: "Azure部署的GPT-3.5模型"
+
+  ollama:
+    code: "ollama"
+    name: "Ollama"
+    description: "本地Ollama服务"
+    api_base: "http://localhost:11434"
+    models:
+      - code: "llama2"
+        name: "Llama 2"
+        type: "chat"
+        max_tokens: 4096
+        description: "Meta的Llama 2模型"
+      - code: "codellama"
+        name: "Code Llama"
+        type: "chat"
+        max_tokens: 16384
+        description: "专门用于代码生成的Llama模型"
+      - code: "mistral"
+        name: "Mistral"
+        type: "chat"
+        max_tokens: 8192
+        description: "Mistral AI的开源模型"
+
+  zhipu:
+    code: "zhipu"
+    name: "智谱AI"
+    description: "智谱AI GLM模型服务"
+    api_base: "https://open.bigmodel.cn/api/paas/v4"
+    models:
+      - code: "glm-4"
+        name: "GLM-4"
+        type: "chat"
+        max_tokens: 128000
+        description: "智谱最新的GLM-4模型"
+      - code: "glm-3-turbo"
+        name: "GLM-3 Turbo"
+        type: "chat"
+        max_tokens: 4096
+        description: "智谱GLM-3快速模型"
+
+  moonshot:
+    code: "moonshot"
+    name: "Moonshot AI"
+    description: "月之暗面Kimi模型服务"
+    api_base: "https://api.moonshot.cn/v1"
+    models:
+      - code: "moonshot-v1-8k"
+        name: "Moonshot V1 8K"
+        type: "chat"
+        max_tokens: 8192
+        description: "Moonshot 8K上下文模型"
+      - code: "moonshot-v1-32k"
+        name: "Moonshot V1 32K"
+        type: "chat"
+        max_tokens: 32768
+        description: "Moonshot 32K上下文模型"
+      - code: "moonshot-v1-128k"
+        name: "Moonshot V1 128K"
+        type: "chat"
+        max_tokens: 131072
+        description: "Moonshot 128K超长上下文模型"
+
+  deepseek:
+    code: "deepseek"
+    name: "DeepSeek"
+    description: "深度求索AI模型服务"
+    api_base: "https://api.deepseek.com/v1"
+    models:
+      - code: "deepseek-chat"
+        name: "DeepSeek Chat"
+        type: "chat"
+        max_tokens: 32768
+        description: "DeepSeek对话模型"
+      - code: "deepseek-coder"
+        name: "DeepSeek Coder"
+        type: "chat"
+        max_tokens: 16384
+        description: "DeepSeek代码专用模型"
+
+  qwen:
+    code: "qwen"
+    name: "通义千问"
+    description: "阿里云通义千问模型服务"
+    api_base: "https://dashscope.aliyuncs.com/api/v1"
+    models:
+      - code: "qwen-turbo"
+        name: "通义千问-Turbo"
+        type: "chat"
+        max_tokens: 8192
+        description: "快速响应的通义千问模型"
+      - code: "qwen-plus"
+        name: "通义千问-Plus"
+        type: "chat"
+        max_tokens: 32768
+        description: "增强版通义千问模型"
+      - code: "qwen-max"
+        name: "通义千问-Max"
+        type: "chat"
+        max_tokens: 8192
+        description: "最强大的通义千问模型"

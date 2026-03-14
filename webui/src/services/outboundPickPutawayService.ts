@@ -11,9 +11,8 @@ export interface OutboundPickPutawayItem {
 }
 
 export interface OutboundPickPutawayCreate {
-  order_id?: number
-  outbound_order_id?: number
-  items?: OutboundPickPutawayItem[]
+  order_ids: number[]
+  remark?: string
 }
 
 export interface OutboundPickPutawayUpdate {
@@ -32,21 +31,38 @@ export interface OutboundPickPutawayItemUpdate {
 
 export interface OutboundPickPutawayItemViewModel {
   id: number
-  outbound_pick_putaway_id: number
+  pick_putaway_id: number
+  order_item_id: number
+  spu_id: number
+  spu_code?: string
+  spu_name?: string
   sku_id: number
-  sku_code: string
-  sku_name: string
+  sku_code?: string
+  sku_name?: string
   qty: number
+  picked_qty: number
+  weight: number
+  volume: number
+  price: number
+  expiry_date: number
+  batch_no: string
+  production_date: number
   goods_location_id: number
-  goods_location_name: string
-  remark?: string
+  goods_location_code?: string
+  picker_id: number
+  picker: string
+  pick_time: number
+  series_number: string
+  tenant_id: string
 }
 
 export interface OutboundPickPutawayViewModel extends BaseEntity {
   id: number
   pick_putaway_no: string
   order_id: number
+  order_ids: string
   order_no: string
+  order_nos: string
   customer_name?: string
   pick_putaway_status: number
   total_qty: number

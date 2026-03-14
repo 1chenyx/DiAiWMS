@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.dependencies import get_master_db_session
-from app.services.tenant_service import TenantService
-from app.schemas.tenant import TenantCreateViewModel, TenantUpdateViewModel, TenantViewModel
+from app.services.system.tenant_service import TenantService
+from app.schemas.system.tenant import TenantCreateViewModel, TenantUpdateViewModel, TenantViewModel
 from app.api.responses import success_response, error_response
 
+_tag = "公共接口-租户管理"
 router = APIRouter()
 
 

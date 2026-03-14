@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.schemas.auth import LoginInputViewModel, LoginOutputViewModel, RefreshTokenInputViewModel
-from app.services.account_service import AccountService
+from app.schemas.system.auth import LoginInputViewModel, LoginOutputViewModel, RefreshTokenInputViewModel
+from app.services.system.account_service import AccountService
 from app.core.token_manager import TokenManager
 from app.core.database import get_master_db
 from app.api.responses import success_response, error_response
 
+_tag = "公共接口-账户认证"
 router = APIRouter()
 
 

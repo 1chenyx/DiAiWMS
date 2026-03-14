@@ -17,14 +17,28 @@ export interface InboundReceiptUpdate {
 
 export interface InboundReceiptItemViewModel {
   id: number
-  inbound_receipt_id: number
+  receipt_id: number
+  pick_putaway_item_id: number
+  spu_id: number
+  spu_code?: string
+  spu_name?: string
   sku_id: number
-  sku_code: string
-  sku_name: string
+  sku_code?: string
+  sku_name?: string
   qty: number
-  batch_no?: string
-  production_date?: number
-  remark?: string
+  actual_qty: number
+  weight: number
+  actual_weight: number
+  volume: number
+  actual_volume: number
+  price: number
+  expiry_date: number
+  goods_location_id: number
+  goods_location_code?: string
+  series_number: string
+  batch_no: string
+  production_date: number
+  tenant_id: string
 }
 
 export interface InboundReceiptViewModel extends BaseEntity {

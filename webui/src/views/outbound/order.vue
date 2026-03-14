@@ -99,6 +99,18 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="货主ID" prop="goods_owner_id">
+              <el-input-number v-model="formData.goods_owner_id" :min="0" placeholder="请输入货主ID" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="货主名称" prop="goods_owner_name">
+              <el-input v-model="formData.goods_owner_name" placeholder="请输入货主名称" clearable />
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-form-item label="备注" prop="remark">
           <el-input v-model="formData.remark" placeholder="请输入备注" type="textarea" />
         </el-form-item>
@@ -126,6 +138,21 @@
           <el-table-column prop="volume" label="体积" width="100">
             <template #default="scope">
               <el-input-number v-model="scope.row.volume" :min="0" :precision="2" size="small" style="width: 100%" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="price" label="价格" width="100">
+            <template #default="scope">
+              <el-input-number v-model="scope.row.price" :min="0" :precision="2" size="small" style="width: 100%" placeholder="可选" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="batch_no" label="批次号" width="120">
+            <template #default="scope">
+              <el-input v-model="scope.row.batch_no" size="small" placeholder="可选" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="goods_location_id" label="库位ID" width="100">
+            <template #default="scope">
+              <el-input-number v-model="scope.row.goods_location_id" :min="0" size="small" style="width: 100%" placeholder="可选" />
             </template>
           </el-table-column>
           <el-table-column label="操作" width="80">
@@ -248,12 +275,16 @@ interface OrderItemWithSku extends OutboundOrderItem {
   sku_code?: string
   sku_name?: string
   spu_name?: string
+  spu_id?: number
 }
 
 const formData = reactive({
   id: 0,
   customer_id: undefined as number | undefined,
+  customer_name: '',
   warehouse_id: undefined as number | undefined,
+  goods_owner_id: 0,
+  goods_owner_name: '',
   remark: '',
   items: [] as OrderItemWithSku[]
 })
@@ -335,7 +366,10 @@ const handleAdd = () => {
   dialogTitle.value = '添加出库订单'
   formData.id = 0
   formData.customer_id = undefined
+  formData.customer_name = ''
   formData.warehouse_id = undefined
+  formData.goods_owner_id = 0
+  formData.goods_owner_name = ''
   formData.remark = ''
   formData.items = []
   dialogVisible.value = true
@@ -381,9 +415,16 @@ const confirmSkuSelection = () => {
     const exists = formData.items.find(item => item.sku_id === sku.id)
     if (!exists) {
       formData.items.push({
+        spu_id: sku.spu_id || 0,
         sku_id: sku.id,
         qty: 1,
-        remark: undefined,
+        weight: 0,
+        volume: 0,
+        price: undefined,
+        expiry_date: 0,
+        batch_no: undefined,
+        production_date: undefined,
+        goods_location_id: 0,
         sku_code: sku.sku_code,
         sku_name: sku.sku_name,
         spu_name: sku.spu_name
@@ -412,14 +453,24 @@ const handleSubmit = async () => {
     submitting.value = true
     
     const items = formData.items.map(item => ({
+      spu_id: item.spu_id || 0,
       sku_id: item.sku_id,
       qty: item.qty,
-      remark: item.remark
+      weight: item.weight || 0,
+      volume: item.volume || 0,
+      price: item.price || undefined,
+      expiry_date: item.expiry_date || 0,
+      batch_no: item.batch_no || undefined,
+      production_date: item.production_date || undefined,
+      goods_location_id: item.goods_location_id || 0
     }))
     
     await outboundOrderService.create({
       customer_id: formData.customer_id!,
+      customer_name: formData.customer_name || undefined,
       warehouse_id: formData.warehouse_id!,
+      goods_owner_id: formData.goods_owner_id || 0,
+      goods_owner_name: formData.goods_owner_name || undefined,
       remark: formData.remark,
       items
     })

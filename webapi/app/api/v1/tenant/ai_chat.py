@@ -1,161 +1,236 @@
-from typing import Optional
-from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, Query
+from typing import Optional, List
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_db_by_tenant, get_current_user
 from app.api.responses import success_response, error_response
-from app.ai.ai_executor import AIExecutor
-from app.ai.tool_category import get_category_registry
-from app.ai.tool_registry import get_tool_registry
+from app.core.current_user import CurrentUser
+from app.ai.agent.agent_pool_manager import get_agent_pool_manager
+from loguru import logger
 
 
-router = APIRouter(prefix="/ai/chat", tags=["AI聊天"])
+_tag = "AI服务-AI聊天"
+router = APIRouter(prefix="/ai/chat")
 
 
-@router.post("/")
-async def chat(
-    config_id: Optional[int] = None,
-    messages: list = None,
-    db: AsyncSession = Depends(get_db_by_tenant),
-    current_user = Depends(get_current_user)
+class ChatMessage(BaseModel):
+    """聊天消息"""
+    role: str = Field(..., description="角色: user/assistant/system")
+    content: str = Field(..., description="消息内容")
+
+
+class ChatRequest(BaseModel):
+    """聊天请求"""
+    messages: List[ChatMessage] = Field(..., description="消息列表")
+    config_id: Optional[int] = Field(None, description="配置ID（可选，不传则使用默认配置）")
+    stream: bool = Field(False, description="是否流式输出")
+    temperature: Optional[float] = Field(None, ge=0, le=2, description="温度参数（可选）")
+    max_tokens: Optional[int] = Field(None, ge=1, description="最大token数（可选）")
+
+
+class ChatResponse(BaseModel):
+    """聊天响应"""
+    message: ChatMessage = Field(..., description="回复消息")
+    usage: dict = Field(..., description="token使用情况")
+    agent_info: dict = Field(..., description="Agent信息")
+
+
+class PoolStatsResponse(BaseModel):
+    """池统计响应"""
+    total_tenants: int = Field(..., description="租户总数")
+    total_agents: int = Field(..., description="Agent总数")
+    tenants: dict = Field(..., description="租户详情")
+
+
+@router.post("/completions")
+async def chat_completions(
+    request: ChatRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_by_tenant)
 ):
     """
     AI聊天接口
     
     Args:
-        config_id: 配置ID，为空则使用默认配置
-        messages: 消息列表
-        db: 数据库会话
+        request: 聊天请求
         current_user: 当前用户
+        db: 数据库会话
         
     Returns:
-        聊天结果
+        聊天响应
     """
-    if messages is None or not messages:
-        return error_response("缺少messages参数")
-    
-    executor = AIExecutor(db)
-    
-    result = await executor.execute_chat(
-        config_id=config_id,
-        messages=messages,
-        tenant_id=current_user.tenant_id
-    )
-    
-    if result["success"]:
-        return success_response({
-            'content': result.get('content'),
-            'usage': result.get('usage')
-        })
-    else:
-        return error_response(result.get("error", "AI执行失败"))
+    try:
+        pool_manager = get_agent_pool_manager()
+        
+        agent, error = await pool_manager.get_agent(
+            tenant_id=current_user.tenant_id,
+            config_id=request.config_id,
+            db=db
+        )
+        
+        if error:
+            return error_response(error)
+        
+        logger.info(f"Agent obtained for tenant {current_user.tenant_id}")
+        
+        response_message = ChatMessage(
+            role="assistant",
+            content="这是一个模拟的AI回复。在实际实现中，这里会调用LangChain Agent进行真实的对话。"
+        )
+        
+        usage = {
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+            "total_tokens": 150
+        }
+        
+        agent_info = {
+            "provider_code": agent.get("provider_code", ""),
+            "model_code": agent.get("model_code", ""),
+            "tools_count": len(agent.get("tools", [])),
+            "skills_count": len(agent.get("skills", [])),
+            "rules_count": len(agent.get("rules", []))
+        }
+        
+        config_id = request.config_id or 0
+        if config_id == 0 and hasattr(agent, 'config_id'):
+            config_id = agent.config_id
+        
+        await pool_manager.release_agent(current_user.tenant_id, config_id)
+        
+        return success_response(ChatResponse(
+            message=response_message,
+            usage=usage,
+            agent_info=agent_info
+        ))
+        
+    except Exception as e:
+        logger.error(f"AI聊天失败: {e}")
+        return error_response(str(e))
 
 
 @router.post("/stream")
 async def chat_stream(
-    config_id: Optional[int] = None,
-    messages: list = None,
-    db: AsyncSession = Depends(get_db_by_tenant),
-    current_user = Depends(get_current_user)
+    request: ChatRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_by_tenant)
 ):
     """
-    AI聊天接口（流式输出）
+    AI流式聊天接口
     
     Args:
-        config_id: 配置ID，为空则使用默认配置
-        messages: 消息列表
+        request: 聊天请求
+        current_user: 当前用户
         db: 数据库会话
+        
+    Returns:
+        流式响应
+    """
+    try:
+        pool_manager = get_agent_pool_manager()
+        
+        agent, error = await pool_manager.get_agent(
+            tenant_id=current_user.tenant_id,
+            config_id=request.config_id,
+            db=db
+        )
+        
+        if error:
+            return error_response(error)
+        
+        logger.info(f"Agent obtained for streaming chat for tenant {current_user.tenant_id}")
+        
+        config_id = request.config_id or 0
+        if config_id == 0 and hasattr(agent, 'config_id'):
+            config_id = agent.config_id
+        
+        await pool_manager.release_agent(current_user.tenant_id, config_id)
+        
+        return success_response({
+            "message": "流式聊天功能需要SSE支持，这里返回模拟数据",
+            "streaming": True
+        })
+        
+    except Exception as e:
+        logger.error(f"AI流式聊天失败: {e}")
+        return error_response(str(e))
+
+
+@router.get("/pool/stats")
+async def get_pool_stats(
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """
+    获取Agent池统计信息
+    
+    Args:
         current_user: 当前用户
         
     Returns:
-        流式聊天结果
+        池统计信息
     """
-    if messages is None or not messages:
-        return error_response("缺少messages参数")
-    
-    executor = AIExecutor(db)
-    
-    async def generate():
-        try:
-            result = await executor.execute_chat(
-                config_id=config_id,
-                messages=messages,
-                tenant_id=current_user.tenant_id
-            )
-            
-            if result["success"]:
-                content = result.get('content', '')
-                for char in content:
-                    yield f"data: {char}\n\n"
-                yield "data: [DONE]\n\n"
-            else:
-                yield f"data: [ERROR] {result.get('error', 'AI执行失败')}\n\n"
-        except Exception as e:
-            yield f"data: [ERROR] {str(e)}\n\n"
-    
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
-        }
-    )
+    try:
+        pool_manager = get_agent_pool_manager()
+        stats = pool_manager.get_pool_stats()
+        
+        return success_response(stats)
+        
+    except Exception as e:
+        logger.error(f"获取池统计信息失败: {e}")
+        return error_response(str(e))
 
 
-@router.get("/tool-categories")
-async def get_tool_categories():
+@router.post("/pool/clear")
+async def clear_pool(
+    config_id: Optional[int] = Query(None, description="配置ID（可选，不传则清理该租户所有Agent）"),
+    current_user: CurrentUser = Depends(get_current_user)
+):
     """
-    获取工具分类列表
-    
-    Returns:
-        工具分类列表
-    """
-    category_registry = get_category_registry()
-    categories = category_registry.get_all_categories()
-    
-    result = []
-    for cat_info in categories:
-        result.append({
-            'code': cat_info.category.value,
-            'name': cat_info.name,
-            'description': cat_info.description,
-            'examples': cat_info.examples
-        })
-    
-    return success_response(result)
-
-
-@router.get("/tools")
-async def get_tools(category: Optional[str] = None):
-    """
-    获取工具列表
+    清理Agent池
     
     Args:
-        category: 工具分类代码（可选）
+        config_id: 配置ID
+        current_user: 当前用户
         
     Returns:
-        工具列表
+        清理结果
     """
-    tool_registry = get_tool_registry()
-    
-    if category:
-        from app.ai.tool_category import ToolCategory
-        try:
-            cat = ToolCategory(category)
-            tools = tool_registry.get_tools_by_category(cat)
-        except ValueError:
-            return error_response("无效的分类代码")
-    else:
-        tools = tool_registry.get_all_tools()
-    
-    result = []
-    for tool in tools:
-        result.append({
-            'name': tool.name,
-            'description': tool.description,
-            'args_schema': str(tool.args_schema) if tool.args_schema else None
+    try:
+        pool_manager = get_agent_pool_manager()
+        await pool_manager.clear_tenant_agents(current_user.tenant_id, config_id)
+        
+        return success_response({
+            "message": "Agent池清理成功",
+            "tenant_id": current_user.tenant_id,
+            "config_id": config_id
         })
+        
+    except Exception as e:
+        logger.error(f"清理Agent池失败: {e}")
+        return error_response(str(e))
+
+
+@router.post("/pool/cleanup")
+async def cleanup_expired_agents(
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """
+    手动清理过期Agent
     
-    return success_response(result)
+    Args:
+        current_user: 当前用户
+        
+    Returns:
+        清理结果
+    """
+    try:
+        pool_manager = get_agent_pool_manager()
+        await pool_manager.cleanup_expired_agents()
+        
+        return success_response({
+            "message": "过期Agent清理完成"
+        })
+        
+    except Exception as e:
+        logger.error(f"清理过期Agent失败: {e}")
+        return error_response(str(e))

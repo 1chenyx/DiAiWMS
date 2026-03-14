@@ -1,0 +1,31 @@
+# LangChain Agent Demo 依赖包
+
+# 核心框架
+langchain>=0.1.0
+langchain-community>=0.0.20
+langchain-openai>=0.0.5
+
+# LLM提供者
+openai>=1.0.0
+anthropic>=0.18.0
+transformers>=4.35.0
+
+# 配置管理
+pyyaml>=6.0.1
+pydantic>=2.0.0
+
+# 记忆存储后端
+redis>=5.0.0
+
+# 数据处理
+numpy>=1.24.0
+pandas>=2.0.0
+
+# 日志和监控
+python-dotenv>=1.0.0
+
+# 可选依赖（用于特定功能）
+# tiktoken>=0.5.0  # OpenAI token计数
+# faiss-cpu>=1.7.0  # 向量搜索
+# chromadb>=0.4.0  # 向量数据库
+# pinecone-client>=2.2.0  # Pinecone向量数据库

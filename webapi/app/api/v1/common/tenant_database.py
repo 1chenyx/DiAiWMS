@@ -5,6 +5,7 @@ from app.api.dependencies import get_master_db_session
 from app.api.responses import success_response, error_response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+_tag = "公共接口-数据库管理"
 router = APIRouter()
 
 

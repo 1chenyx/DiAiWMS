@@ -22,7 +22,7 @@ def register_routers(
     prefix: str = "",
     depth: int = 0,
     min_depth: int = 1,
-    max_depth: int = 2,
+    max_depth: int = 3,
 ):
     """
     注册路由

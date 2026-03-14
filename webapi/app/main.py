@@ -57,15 +57,7 @@ async def lifespan(xapp: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize CacheManager: {e}", exc_info=True)
     
-    # 初始化AI工具
-    try:
-        logger.info("Initializing AI tools...")
-        import app.ai.tools_init
-        from app.ai.tool_registry import get_tool_registry
-        registry = get_tool_registry()
-        logger.info(f"AI tools initialized: {len(registry.get_all_tools())} tools registered")
-    except Exception as e:
-        logger.error(f"Failed to initialize AI tools: {e}", exc_info=True)
+    # AI工具初始化已移除，等待重新实现
     
     # 应用启动
     logger.info("Application server running")
