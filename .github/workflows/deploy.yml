@@ -87,11 +87,14 @@ jobs:
 
       - name: Deploy to remote server
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DOCKER_IMAGE: ${{ env.DOCKER_IMAGE }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: DOCKER_IMAGE
           script: |
             echo "创建部署目录..."
             mkdir -p ${{ secrets.DEPLOY_PATH }}
@@ -113,10 +116,10 @@ jobs:
             EOF
             
             echo "创建 docker-compose 配置文件..."
-            cat > docker-compose.prod.yaml << 'EOF'
+            cat > docker-compose.prod.yaml << EOF
             services:
               backend:
-                image: ${{ env.DOCKER_IMAGE }}/wms-backend:latest
+                image: ${DOCKER_IMAGE}/wms-backend:latest
                 restart: unless-stopped
                 environment:
                   app_env: prod
@@ -147,7 +150,7 @@ jobs:
                   start_period: 40s
 
               frontend:
-                image: ${{ env.DOCKER_IMAGE }}/wms-frontend:latest
+                image: ${DOCKER_IMAGE}/wms-frontend:latest
                 restart: unless-stopped
                 ports:
                   - "8011:80"
