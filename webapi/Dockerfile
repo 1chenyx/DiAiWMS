@@ -30,7 +30,6 @@ ENV PATH=/root/.local/bin:$PATH
 
 COPY config ./config
 COPY app ./app
-COPY migrations ./migrations
 COPY alembic.ini ./
 
 RUN mkdir -p /backend/logs && chmod 777 /backend/logs

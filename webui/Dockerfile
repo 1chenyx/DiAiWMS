@@ -6,7 +6,7 @@ COPY package*.json ./
 RUN npm install --registry=https://registry.npmmirror.com
 
 COPY . .
-RUN npm run build
+RUN npx vite build
 
 FROM nginx:alpine
 
