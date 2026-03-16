@@ -16,10 +16,6 @@ on:
           - production
           - staging
 
-env:
-  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-  DOCKER_IMAGE: ${{ lower(secrets.DOCKER_USERNAME) }}
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -40,7 +36,7 @@ jobs:
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_IMAGE }}/wms-backend
+          images: docker.io/${{ secrets.DOCKER_USERNAME }}/wms-backend
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -61,7 +57,7 @@ jobs:
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_IMAGE }}/wms-frontend
+          images: docker.io/${{ secrets.DOCKER_USERNAME }}/wms-frontend
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -87,18 +83,17 @@ jobs:
 
       - name: Deploy to remote server
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          DOCKER_IMAGE: ${{ env.DOCKER_IMAGE }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: DOCKER_IMAGE
           script: |
             echo "创建部署目录..."
             mkdir -p ${{ secrets.DEPLOY_PATH }}
             cd ${{ secrets.DEPLOY_PATH }}
+            
+            DOCKER_USER=$(echo "${{ secrets.DOCKER_USERNAME }}" | tr '[:upper:]' '[:lower:]')
             
             echo "创建 .env 文件..."
             cat > .env << 'EOF'
@@ -119,7 +114,7 @@ jobs:
             cat > docker-compose.prod.yaml << EOF
             services:
               backend:
-                image: ${DOCKER_IMAGE}/wms-backend:latest
+                image: docker.io/${DOCKER_USER}/wms-backend:latest
                 restart: unless-stopped
                 environment:
                   app_env: prod
@@ -150,7 +145,7 @@ jobs:
                   start_period: 40s
 
               frontend:
-                image: ${DOCKER_IMAGE}/wms-frontend:latest
+                image: docker.io/${DOCKER_USER}/wms-frontend:latest
                 restart: unless-stopped
                 ports:
                   - "8011:80"
