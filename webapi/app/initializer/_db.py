@@ -106,7 +106,10 @@ def import_tables() -> DeclarativeAttributeIntercept | None:
         return None
     decl_base = getattr(importlib.import_module(_MODELS_MOD_BASE), _DECL_BASE_NAME, None)
     if isinstance(decl_base, DeclarativeAttributeIntercept):
-        pat = re.compile(rf"^\s*class\s+[A-Za-z_]\w*\s*\(\s*{_DECL_BASE_NAME}\s*\)\s*:", re.MULTILINE)
+        pat = re.compile(
+            rf"^\s*class\s+[A-Za-z_]\w*\s*\(\s*(?:{_DECL_BASE_NAME}|WMSBaseModel)\s*\)\s*:",
+            re.MULTILINE
+        )
         for f in _MODELS_MOD_DIR.rglob("*.py"):
             if f.name.startswith("__"):
                 continue

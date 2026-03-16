@@ -248,7 +248,7 @@ class TenantAIConfigService(TenantAwareService[TenantAIConfigRepository, TenantA
                 update_data["max_tokens"] = view_model.max_tokens
             
             if view_model.is_default is not None and view_model.is_default:
-                await self._set_as_default(config_id, current_user.tenant_id)
+                await self._clear_other_defaults(config_id, current_user.tenant_id)
                 update_data["is_default"] = True
             
             if update_data:
@@ -260,6 +260,29 @@ class TenantAIConfigService(TenantAwareService[TenantAIConfigRepository, TenantA
         except Exception as e:
             logger.error(f"更新AI配置失败: {e}")
             return False, str(e)
+    
+    async def _clear_other_defaults(self, config_id: int, tenant_id: str):
+        """
+        清除其他默认配置
+        
+        Args:
+            config_id: 当前配置ID
+            tenant_id: 租户ID
+        """
+        result = await self._db_session.execute(
+            select(TenantAIConfig).where(
+                and_(
+                    TenantAIConfig.tenant_id == tenant_id,
+                    TenantAIConfig.is_default == True,
+                    TenantAIConfig.id != config_id,
+                    TenantAIConfig.is_valid == True
+                )
+            )
+        )
+        other_defaults = result.scalars().all()
+        
+        for other_config in other_defaults:
+            other_config.is_default = False
     
     async def delete_config(
         self,
@@ -354,6 +377,7 @@ class TenantAIConfigService(TenantAwareService[TenantAIConfigRepository, TenantA
             config.is_default = True
         
         await self._db_session.commit()
+        await self._db_session.refresh(config) if config else None
     
     async def _to_view_model(self, config: TenantAIConfig) -> TenantAIConfigViewModel:
         """

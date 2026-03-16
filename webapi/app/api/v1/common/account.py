@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.schemas.system.auth import LoginInputViewModel, LoginOutputViewModel, RefreshTokenInputViewModel
+from app.schemas.system.auth import (
+    LoginInputViewModel, LoginOutputViewModel, RefreshTokenInputViewModel,
+    EnterpriseRegisterInputViewModel, EnterpriseRegisterOutputViewModel
+)
 from app.services.system.account_service import AccountService
 from app.core.token_manager import TokenManager
 from app.core.database import get_master_db
@@ -8,6 +11,39 @@ from app.api.responses import success_response, error_response
 
 _tag = "公共接口-账户认证"
 router = APIRouter()
+
+
+@router.post("/register")
+async def register(
+    register_input: EnterpriseRegisterInputViewModel,
+    db: AsyncSession = Depends(get_master_db)
+):
+    """
+    企业注册
+    
+    创建新企业租户和管理员账户
+    
+    Args:
+        register_input: 企业注册信息
+        db: 主库会话
+        
+    Returns:
+        注册成功返回企业和管理员信息,失败返回错误信息
+    """
+    from app.initializer import g
+    
+    token_manager = TokenManager(
+        secret_key=g.config.jwt_signing_key,
+        expire_minutes=g.config.jwt_expire_minute
+    )
+    
+    account_service = AccountService(db, token_manager)
+    result, msg = await account_service.register_enterprise(register_input)
+    
+    if result:
+        return success_response(result)
+    else:
+        return error_response(msg)
 
 
 @router.post("/login")

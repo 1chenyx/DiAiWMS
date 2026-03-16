@@ -1,11 +1,11 @@
 import json
 import redis
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 from datetime import timedelta
-import logging
-from app.initializer._conf import Config
+from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+from app.initializer._conf import Config, _CONFIG_DIR, yaml_path
+from loguru import logger
 
 
 class CacheManager:
@@ -18,6 +18,39 @@ class CacheManager:
         if cls._instance is None:
             cls._instance = super(CacheManager, cls).__new__(cls)
         return cls._instance
+
+    def _serialize_value(self, value: Any) -> str:
+        """
+        序列化值为JSON字符串
+        
+        Args:
+            value: 要序列化的值
+            
+        Returns:
+            JSON字符串
+        """
+        if isinstance(value, str):
+            return value
+        if isinstance(value, BaseModel):
+            return value.model_dump_json()
+        return json.dumps(value, ensure_ascii=False)
+    
+    def _deserialize_value(self, value: str) -> Any:
+        """
+        反序列化JSON字符串
+        
+        Args:
+            value: JSON字符串
+            
+        Returns:
+            反序列化后的值
+        """
+        if value is None:
+            return None
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return value
 
     def __init__(self):
         if self._redis_client is None:
@@ -72,7 +105,7 @@ class CacheManager:
 
         if self._redis_client:
             try:
-                self._redis_client.set(key, json.dumps(value, ensure_ascii=False))
+                self._redis_client.set(key, self._serialize_value(value))
             except Exception as e:
                 logger.error(f"Redis set error: {e}")
         else:
@@ -88,7 +121,7 @@ class CacheManager:
                 self._redis_client.setex(
                     key,
                     expire_seconds,
-                    json.dumps(value, ensure_ascii=False)
+                    self._serialize_value(value)
                 )
             except Exception as e:
                 logger.error(f"Redis set error: {e}")
@@ -102,12 +135,7 @@ class CacheManager:
         if self._redis_client:
             try:
                 expire_seconds = int(timedelta(minutes=expire_minutes).total_seconds())
-                if isinstance(value, str):
-                    serialized_value = value
-                else:
-                    serialized_value = json.dumps(value, ensure_ascii=False)
-                
-                self._redis_client.setex(key, expire_seconds, serialized_value)
+                self._redis_client.setex(key, expire_seconds, self._serialize_value(value))
             except Exception as e:
                 logger.error(f"Redis set error: {e}")
         else:
@@ -128,7 +156,7 @@ class CacheManager:
                 self._redis_client.setex(
                     key,
                     timedelta(minutes=absolute_minutes),
-                    json.dumps(value, ensure_ascii=False)
+                    self._serialize_value(value)
                 )
             except Exception as e:
                 logger.error(f"Redis set error: {e}")

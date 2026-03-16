@@ -174,6 +174,42 @@ class TenantDatabasePool(metaclass=Singleton):
         else:
             logger.info("主库连接池初始化成功")
     
+    async def _create_tables_if_not_exists(self, engine):
+        """
+        创建表（如果不存在）
+        
+        Args:
+            engine: 数据库引擎
+        """
+        from app.initializer._db import import_tables
+        from sqlalchemy import text
+        
+        decl_base = import_tables()
+        if decl_base:
+            async with engine.begin() as conn:
+                try:
+                    await conn.run_sync(decl_base.metadata.create_all)
+                    logger.info("租户数据库表检查完成")
+                except Exception as e:
+                    if "already exists" not in str(e):
+                        logger.warning(f"创建租户数据库表时出错: {e}")
+                
+                try:
+                    tables = ['userrole', '"user"', 'tenant', 'menu', 'rolemenu', 'action_log']
+                    for table in tables:
+                        try:
+                            result = await conn.execute(text(f"""
+                                SELECT setval(
+                                    pg_get_serial_sequence('{table}', 'id'),
+                                    COALESCE((SELECT MAX(id) FROM {table}), 1)
+                                )
+                            """))
+                        except Exception:
+                            pass
+                    logger.info("数据库序列同步完成")
+                except Exception as e:
+                    logger.warning(f"同步数据库序列时出错: {e}")
+    
     async def add_tenant_database(
         self,
         tenant_id: str,
@@ -247,6 +283,8 @@ class TenantDatabasePool(metaclass=Singleton):
             pool_pre_ping=True,
             **kwargs,
         )
+        
+        await self._create_tables_if_not_exists(engine)
         
         session_factory = async_sessionmaker(
             engine,
@@ -328,11 +366,9 @@ class TenantDatabasePool(metaclass=Singleton):
         if tenant_id not in self._tenant_engines:
             logger.warning(f"租户 {tenant_id} 的数据库连接池不存在，尝试自动创建")
             
-            # 从主库查询租户配置
             if self._master_session_factory is None:
                 raise RuntimeError("主库连接池未初始化，无法创建租户连接池")
             
-            # 查询租户配置
             from app.models.entities import Tenant
             from sqlalchemy import select
             
@@ -345,7 +381,6 @@ class TenantDatabasePool(metaclass=Singleton):
                 if not tenant:
                     raise RuntimeError(f"租户 {tenant_id} 不存在，无法创建数据库连接池")
                 
-                # 自动创建租户连接池
                 await self.add_tenant_database(
                     tenant_id=tenant_id,
                     db_drivername=tenant.db_drivername,

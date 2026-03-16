@@ -1,6 +1,6 @@
 export { http, default as apiClient } from './api'
 
-export { authService, type LoginInput, type LoginOutput, type RefreshTokenInput, type RefreshTokenOutput } from './authService'
+export { authService, type LoginInput, type LoginOutput, type RefreshTokenInput, type RefreshTokenOutput, type EnterpriseRegisterInput, type EnterpriseRegisterOutput } from './authService'
 export { aiConfigService, type AIProviderInfo, type AIModelInfo, type AIProviderWithModels, type TenantAIConfig, type TenantAIConfigCreate, type TenantAIConfigUpdate, type TenantAIConfigPageParams } from './aiConfigService'
 
 export { warehouseLocationService, type WarehouseLocation, type WarehouseLocationCreate, type WarehouseLocationUpdate, type WarehouseLocationPageParams, type WarehouseLocationTreeNode } from './warehouseLocationService'
