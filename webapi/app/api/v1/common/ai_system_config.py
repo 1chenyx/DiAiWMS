@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from app.schemas.ai_config import (
     AIProviderInfo,
     AIModelInfo,
@@ -39,8 +39,8 @@ async def get_providers():
     return success_response(provider_list)
 
 
-@router.get("/providers/{provider_code}")
-async def get_provider(provider_code: str):
+@router.get("/provider")
+async def get_provider(provider_code: str = Query(..., description="服务商代码")):
     """
     获取指定AI服务商
     
@@ -64,8 +64,8 @@ async def get_provider(provider_code: str):
     ))
 
 
-@router.get("/providers/{provider_code}/models")
-async def get_provider_models(provider_code: str):
+@router.get("/provider/models")
+async def get_provider_models(provider_code: str = Query(..., description="服务商代码")):
     """
     获取指定AI服务商的所有模型
     
@@ -175,8 +175,8 @@ async def get_tool_categories():
     return success_response(category_list)
 
 
-@router.get("/tools/{tool_code}")
-async def get_tool(tool_code: str):
+@router.get("/tool")
+async def get_tool(tool_code: str = Query(..., description="工具代码")):
     """
     获取指定工具
     
@@ -254,8 +254,8 @@ async def get_rule_categories():
     return success_response(category_list)
 
 
-@router.get("/rules/{rule_code}")
-async def get_rule(rule_code: str):
+@router.get("/rule")
+async def get_rule(rule_code: str = Query(..., description="规则代码")):
     """
     获取指定规则
     

@@ -375,13 +375,13 @@ class TenantAIConfigService(TenantAwareService[TenantAIConfigRepository, TenantA
             provider_name=provider.get("name", "") if provider else config.provider_code,
             model_code=config.model_code,
             model_name=model.get("name", "") if model else config.model_code,
-            api_key=config.api_key,
+            api_key=config.api_key or "",
             api_endpoint=config.api_endpoint,
             is_default=config.is_default,
             temperature=config.temperature,
             max_tokens=config.max_tokens,
             is_valid=config.is_valid,
-            creator=config.creator,
-            create_time=config.create_time,
-            last_update_time=config.last_update_time
+            creator=config.creator or "",
+            create_time=config.create_time or 0,
+            last_update_time=config.last_update_time or 0
         )

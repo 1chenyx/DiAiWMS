@@ -154,9 +154,9 @@ async def delete_stock(
     return success_response({"id": id})
 
 
-@router.post("/stock/{id}/update-qty")
+@router.post("/stock/update-qty")
 async def update_stock_qty(
-    id: int,
+    id: int = Query(..., description="库存ID"),
     qty_change: int = Query(..., description="数量变化（正数增加，负数减少）"),
     db: AsyncSession = Depends(get_db_by_tenant)
 ):

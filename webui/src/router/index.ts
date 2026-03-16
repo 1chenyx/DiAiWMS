@@ -6,6 +6,7 @@ import basicRoutes from './modules/basic'
 import inboundRoutes from './modules/inbound'
 import outboundRoutes from './modules/outbound'
 import inventoryRoutes from './modules/inventory'
+import aiRoutes from './modules/ai'
 import authRoutes from './modules/auth'
 
 const router = createRouter({
@@ -19,7 +20,8 @@ const router = createRouter({
         ...basicRoutes,
         ...inboundRoutes,
         ...outboundRoutes,
-        ...inventoryRoutes
+        ...inventoryRoutes,
+        ...aiRoutes
       ]
     },
     ...authRoutes

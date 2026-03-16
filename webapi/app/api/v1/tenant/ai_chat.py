@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, Query
-from typing import Optional, List
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_db_by_tenant, get_current_user
 from app.api.responses import success_response, error_response
 from app.core.current_user import CurrentUser
-from app.ai.agent.agent_pool_manager import get_agent_pool_manager
+from app.ai.services.chat_service import AIChatService
+from app.ai.tools.executor import ToolExecutor
+from app.ai.llm.connection_pool import get_llm_connection_pool
+from app.schemas.ai_config import ChatMessage, ChatRequest, ChatResponse
 from loguru import logger
 
 
@@ -13,33 +16,11 @@ _tag = "AI服务-AI聊天"
 router = APIRouter(prefix="/ai/chat")
 
 
-class ChatMessage(BaseModel):
-    """聊天消息"""
-    role: str = Field(..., description="角色: user/assistant/system")
-    content: str = Field(..., description="消息内容")
-
-
-class ChatRequest(BaseModel):
-    """聊天请求"""
-    messages: List[ChatMessage] = Field(..., description="消息列表")
-    config_id: Optional[int] = Field(None, description="配置ID（可选，不传则使用默认配置）")
-    stream: bool = Field(False, description="是否流式输出")
-    temperature: Optional[float] = Field(None, ge=0, le=2, description="温度参数（可选）")
-    max_tokens: Optional[int] = Field(None, ge=1, description="最大token数（可选）")
-
-
-class ChatResponse(BaseModel):
-    """聊天响应"""
-    message: ChatMessage = Field(..., description="回复消息")
-    usage: dict = Field(..., description="token使用情况")
-    agent_info: dict = Field(..., description="Agent信息")
-
-
-class PoolStatsResponse(BaseModel):
-    """池统计响应"""
-    total_tenants: int = Field(..., description="租户总数")
-    total_agents: int = Field(..., description="Agent总数")
-    tenants: dict = Field(..., description="租户详情")
+class ToolExecuteRequest(BaseModel):
+    """工具执行请求"""
+    tool_code: str = Field(..., description="工具代码")
+    action: str = Field(..., description="操作类型")
+    params: Dict[str, Any] = Field(default_factory=dict, description="参数")
 
 
 @router.post("/completions")
@@ -51,6 +32,9 @@ async def chat_completions(
     """
     AI聊天接口
     
+    根据租户配置的LLM、工具、技能和规则执行AI对话。
+    支持Function Calling，自动调用配置的工具。
+    
     Args:
         request: 聊天请求
         current_user: 当前用户
@@ -60,48 +44,32 @@ async def chat_completions(
         聊天响应
     """
     try:
-        pool_manager = get_agent_pool_manager()
+        chat_service = AIChatService(db)
         
-        agent, error = await pool_manager.get_agent(
+        messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+        
+        result = await chat_service.chat(
             tenant_id=current_user.tenant_id,
+            messages=messages,
             config_id=request.config_id,
-            db=db
+            temperature=request.temperature,
+            max_tokens=request.max_tokens
         )
         
-        if error:
-            return error_response(error)
-        
-        logger.info(f"Agent obtained for tenant {current_user.tenant_id}")
+        if not result.get("success"):
+            return error_response(result.get("error", "AI聊天失败"))
         
         response_message = ChatMessage(
-            role="assistant",
-            content="这是一个模拟的AI回复。在实际实现中，这里会调用LangChain Agent进行真实的对话。"
+            role=result["message"]["role"],
+            content=result["message"]["content"]
         )
-        
-        usage = {
-            "prompt_tokens": 100,
-            "completion_tokens": 50,
-            "total_tokens": 150
-        }
-        
-        agent_info = {
-            "provider_code": agent.get("provider_code", ""),
-            "model_code": agent.get("model_code", ""),
-            "tools_count": len(agent.get("tools", [])),
-            "skills_count": len(agent.get("skills", [])),
-            "rules_count": len(agent.get("rules", []))
-        }
-        
-        config_id = request.config_id or 0
-        if config_id == 0 and hasattr(agent, 'config_id'):
-            config_id = agent.config_id
-        
-        await pool_manager.release_agent(current_user.tenant_id, config_id)
         
         return success_response(ChatResponse(
             message=response_message,
-            usage=usage,
-            agent_info=agent_info
+            usage=result.get("usage", {}),
+            agent_info={
+                "iterations": result.get("iterations", 1)
+            }
         ))
         
     except Exception as e:
@@ -127,32 +95,70 @@ async def chat_stream(
         流式响应
     """
     try:
-        pool_manager = get_agent_pool_manager()
-        
-        agent, error = await pool_manager.get_agent(
-            tenant_id=current_user.tenant_id,
-            config_id=request.config_id,
-            db=db
-        )
-        
-        if error:
-            return error_response(error)
-        
-        logger.info(f"Agent obtained for streaming chat for tenant {current_user.tenant_id}")
-        
-        config_id = request.config_id or 0
-        if config_id == 0 and hasattr(agent, 'config_id'):
-            config_id = agent.config_id
-        
-        await pool_manager.release_agent(current_user.tenant_id, config_id)
-        
-        return success_response({
-            "message": "流式聊天功能需要SSE支持，这里返回模拟数据",
-            "streaming": True
-        })
+        return error_response("流式聊天功能暂未实现")
         
     except Exception as e:
         logger.error(f"AI流式聊天失败: {e}")
+        return error_response(str(e))
+
+
+@router.post("/tool/execute")
+async def execute_tool(
+    request: ToolExecuteRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_by_tenant)
+):
+    """
+    执行AI工具
+    
+    直接执行指定的AI工具，用于测试或手动调用。
+    
+    Args:
+        request: 工具执行请求
+        current_user: 当前用户
+        db: 数据库会话
+        
+    Returns:
+        执行结果
+    """
+    try:
+        executor = ToolExecutor()
+        result = await executor.execute(
+            tool_code=request.tool_code,
+            db=db,
+            tenant_id=current_user.tenant_id,
+            action=request.action,
+            params=request.params
+        )
+        
+        return success_response(result)
+        
+    except Exception as e:
+        logger.error(f"工具执行失败: {e}")
+        return error_response(str(e))
+
+
+@router.get("/tool/list")
+async def list_tools(
+    current_user: CurrentUser = Depends(get_current_user)
+):
+    """
+    获取可用工具列表
+    
+    Args:
+        current_user: 当前用户
+        
+    Returns:
+        工具列表
+    """
+    try:
+        executor = ToolExecutor()
+        tools = executor.get_available_tools()
+        
+        return success_response(tools)
+        
+    except Exception as e:
+        logger.error(f"获取工具列表失败: {e}")
         return error_response(str(e))
 
 
@@ -161,32 +167,32 @@ async def get_pool_stats(
     current_user: CurrentUser = Depends(get_current_user)
 ):
     """
-    获取Agent池统计信息
+    获取LLM连接池统计信息
     
     Args:
         current_user: 当前用户
         
     Returns:
-        池统计信息
+        连接池统计信息
     """
     try:
-        pool_manager = get_agent_pool_manager()
-        stats = pool_manager.get_pool_stats()
+        pool = get_llm_connection_pool()
+        stats = pool.get_pool_stats()
         
         return success_response(stats)
         
     except Exception as e:
-        logger.error(f"获取池统计信息失败: {e}")
+        logger.error(f"获取连接池统计信息失败: {e}")
         return error_response(str(e))
 
 
 @router.post("/pool/clear")
 async def clear_pool(
-    config_id: Optional[int] = Query(None, description="配置ID（可选，不传则清理该租户所有Agent）"),
+    config_id: Optional[int] = Query(None, description="配置ID（可选，不传则清理该租户所有连接）"),
     current_user: CurrentUser = Depends(get_current_user)
 ):
     """
-    清理Agent池
+    清理LLM连接池
     
     Args:
         config_id: 配置ID
@@ -196,26 +202,26 @@ async def clear_pool(
         清理结果
     """
     try:
-        pool_manager = get_agent_pool_manager()
-        await pool_manager.clear_tenant_agents(current_user.tenant_id, config_id)
+        pool = get_llm_connection_pool()
+        await pool.clear_tenant_connections(current_user.tenant_id, config_id)
         
         return success_response({
-            "message": "Agent池清理成功",
+            "message": "LLM连接池清理成功",
             "tenant_id": current_user.tenant_id,
             "config_id": config_id
         })
         
     except Exception as e:
-        logger.error(f"清理Agent池失败: {e}")
+        logger.error(f"清理连接池失败: {e}")
         return error_response(str(e))
 
 
 @router.post("/pool/cleanup")
-async def cleanup_expired_agents(
+async def cleanup_expired_connections(
     current_user: CurrentUser = Depends(get_current_user)
 ):
     """
-    手动清理过期Agent
+    手动清理过期连接
     
     Args:
         current_user: 当前用户
@@ -224,13 +230,13 @@ async def cleanup_expired_agents(
         清理结果
     """
     try:
-        pool_manager = get_agent_pool_manager()
-        await pool_manager.cleanup_expired_agents()
+        pool = get_llm_connection_pool()
+        await pool.cleanup_expired_connections()
         
         return success_response({
-            "message": "过期Agent清理完成"
+            "message": "过期连接清理完成"
         })
         
     except Exception as e:
-        logger.error(f"清理过期Agent失败: {e}")
+        logger.error(f"清理过期连接失败: {e}")
         return error_response(str(e))

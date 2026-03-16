@@ -24,6 +24,7 @@ from app.services.system.tenant_ai_config_service import TenantAIConfigService
 from app.services.system.tenant_ai_tool_service import TenantAIToolService
 from app.services.system.tenant_ai_skill_service import TenantAISkillService
 from app.services.system.tenant_ai_rule_service import TenantAIRuleService
+from app.ai.llm.connection_pool import get_llm_connection_pool
 
 
 _tag = "AI服务-AI租户配置"
@@ -56,32 +57,6 @@ async def get_default_llm_config(
     return success_response(result)
 
 
-@router.get("/llm/{config_id}")
-async def get_llm_config(
-    config_id: int,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_by_tenant)
-):
-    """
-    根据ID获取LLM配置
-    
-    Args:
-        config_id: 配置ID
-        current_user: 当前用户
-        db: 数据库会话
-        
-    Returns:
-        配置信息
-    """
-    service = TenantAIConfigService(db)
-    result = await service.get_config_by_id(config_id, current_user)
-    
-    if result is None:
-        return error_response("配置不存在")
-    
-    return success_response(result)
-
-
 @router.get("/llm/list")
 async def get_llm_config_list(
     provider_code: Optional[str] = Query(None, description="服务商代码"),
@@ -105,6 +80,32 @@ async def get_llm_config_list(
     """
     service = TenantAIConfigService(db)
     result = await service.get_config_list(current_user, provider_code, page_index, page_size)
+    return success_response(result)
+
+
+@router.get("/llm")
+async def get_llm_config(
+    config_id: int = Query(..., description="配置ID"),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_by_tenant)
+):
+    """
+    根据ID获取LLM配置
+    
+    Args:
+        config_id: 配置ID
+        current_user: 当前用户
+        db: 数据库会话
+        
+    Returns:
+        配置信息
+    """
+    service = TenantAIConfigService(db)
+    result = await service.get_config_by_id(config_id, current_user)
+    
+    if result is None:
+        return error_response("配置不存在")
+    
     return success_response(result)
 
 
@@ -158,6 +159,9 @@ async def update_llm_config(
     if not flag:
         return error_response(msg)
     
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, view_model.id)
+    
     result = await service.get_config_by_id(view_model.id, current_user)
     return success_response(result)
 
@@ -184,6 +188,9 @@ async def delete_llm_config(
     
     if not flag:
         return error_response(msg)
+    
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, config_id)
     
     return success_response({"id": config_id})
 
@@ -285,6 +292,9 @@ async def activate_tool(
     if tool_id == 0:
         return error_response(msg)
     
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, config_type="tool")
+    
     tools = await service.get_active_tools(current_user.tenant_id)
     result = next((t for t in tools if t.id == tool_id), None)
     return success_response(result)
@@ -313,6 +323,9 @@ async def deactivate_tool(
     if not flag:
         return error_response(msg)
     
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, config_type="tool")
+    
     return success_response({"id": tool_id})
 
 
@@ -338,6 +351,9 @@ async def update_tool_config(
     
     if not flag:
         return error_response(msg)
+    
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, config_type="tool")
     
     tools = await service.get_active_tools(current_user.tenant_id)
     result = next((t for t in tools if t.id == view_model.id), None)
@@ -415,6 +431,9 @@ async def create_skill(
     if skill_id == 0:
         return error_response(msg)
     
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, config_type="skill")
+    
     result = await service.get_skill_by_id(skill_id, current_user)
     return success_response(result)
 
@@ -442,6 +461,9 @@ async def update_skill(
     if not flag:
         return error_response(msg)
     
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, config_type="skill")
+    
     result = await service.get_skill_by_id(view_model.id, current_user)
     return success_response(result)
 
@@ -468,6 +490,9 @@ async def delete_skill(
     
     if not flag:
         return error_response(msg)
+    
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, config_type="skill")
     
     return success_response({"id": skill_id})
 
@@ -569,6 +594,9 @@ async def create_rule(
     if rule_id == 0:
         return error_response(msg)
     
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, config_type="rule")
+    
     result = await service.get_rule_by_id(rule_id, current_user)
     return success_response(result)
 
@@ -596,6 +624,9 @@ async def update_rule(
     if not flag:
         return error_response(msg)
     
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, config_type="rule")
+    
     result = await service.get_rule_by_id(view_model.id, current_user)
     return success_response(result)
 
@@ -622,5 +653,8 @@ async def delete_rule(
     
     if not flag:
         return error_response(msg)
+    
+    pool = get_llm_connection_pool()
+    await pool.invalidate_config(current_user.tenant_id, config_type="rule")
     
     return success_response({"id": rule_id})

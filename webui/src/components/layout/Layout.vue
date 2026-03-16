@@ -115,6 +115,17 @@
               <span>库存盘点</span>
             </el-menu-item>
           </el-sub-menu>
+          
+          <el-sub-menu index="ai">
+            <template #title>
+              <el-icon><MagicStick /></el-icon>
+              <span>AI服务</span>
+            </template>
+            <el-menu-item index="/ai/chat">
+              <el-icon><ChatDotRound /></el-icon>
+              <span>AI对话</span>
+            </el-menu-item>
+          </el-sub-menu>
         </el-menu>
       </el-scrollbar>
     </el-aside>
@@ -221,8 +232,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { 
-  House, Collection, ArrowUp, ArrowDown, Box, Menu,
-  OfficeBuilding, Van, User, Briefcase, MagicStick,
+  House, Collection, ArrowUp, ArrowDown, Box,
+  OfficeBuilding, Van, User, Briefcase, MagicStick, ChatDotRound,
   Document, Upload, DocumentChecked, Download, Search, List,
   Fold, Expand, Sunny, Moon, FullScreen, Bell, Setting, Lock, SwitchButton
 } from '@element-plus/icons-vue'

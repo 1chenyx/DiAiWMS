@@ -37,10 +37,10 @@ class TenantAIConfigViewModel(BaseModel):
     model_code: str = Field(default="", description="模型代码")
     model_name: str = Field(default="", description="模型名称")
     api_key: str = Field(default="", description="API密钥")
-    api_endpoint: str = Field(default="", description="API端点")
+    api_endpoint: Optional[str] = Field(default=None, description="API端点")
     is_default: bool = Field(default=False, description="是否默认配置")
-    temperature: str = Field(default="0.7", description="温度参数")
-    max_tokens: int = Field(default=2000, description="最大token数")
+    temperature: Optional[float] = Field(default=0.7, description="温度参数")
+    max_tokens: Optional[int] = Field(default=2000, description="最大token数")
     is_valid: bool = Field(default=True, description="是否有效")
     creator: str = Field(default="", description="创建人")
     create_time: int = Field(default=0, description="创建时间")
@@ -52,10 +52,10 @@ class TenantAIConfigCreateViewModel(BaseModel):
     provider_code: str = Field(..., description="服务商代码")
     model_code: str = Field(..., description="模型代码")
     api_key: str = Field(..., description="API密钥")
-    api_endpoint: str = Field(default="", description="API端点")
+    api_endpoint: Optional[str] = Field(default=None, description="API端点")
     is_default: bool = Field(default=False, description="是否默认配置")
-    temperature: str = Field(default="0.7", description="温度参数")
-    max_tokens: int = Field(default=2000, description="最大token数")
+    temperature: Optional[float] = Field(default=0.7, description="温度参数")
+    max_tokens: Optional[int] = Field(default=2000, description="最大token数")
 
 
 class TenantAIConfigUpdateViewModel(BaseModel):
@@ -64,7 +64,7 @@ class TenantAIConfigUpdateViewModel(BaseModel):
     api_key: Optional[str] = Field(None, description="API密钥")
     api_endpoint: Optional[str] = Field(None, description="API端点")
     is_default: Optional[bool] = Field(None, description="是否默认配置")
-    temperature: Optional[str] = Field(None, description="温度参数")
+    temperature: Optional[float] = Field(None, description="温度参数")
     max_tokens: Optional[int] = Field(None, description="最大token数")
 
 
@@ -220,3 +220,32 @@ class SkillGenerateRequest(BaseModel):
     skill_description: str = Field(..., description="技能描述")
     skill_type: str = Field(default="custom", description="技能类型")
     context: str = Field(default="", description="上下文信息")
+
+
+class ChatMessage(BaseModel):
+    """聊天消息"""
+    role: str = Field(..., description="角色: user/assistant/system")
+    content: str = Field(..., description="消息内容")
+
+
+class ChatRequest(BaseModel):
+    """聊天请求"""
+    messages: List[ChatMessage] = Field(..., description="消息列表")
+    config_id: Optional[int] = Field(None, description="配置ID（可选，不传则使用默认配置）")
+    stream: bool = Field(False, description="是否流式输出")
+    temperature: Optional[float] = Field(None, ge=0, le=2, description="温度参数（可选）")
+    max_tokens: Optional[int] = Field(None, ge=1, description="最大token数（可选）")
+
+
+class ChatResponse(BaseModel):
+    """聊天响应"""
+    message: ChatMessage = Field(..., description="回复消息")
+    usage: dict = Field(..., description="token使用情况")
+    agent_info: dict = Field(..., description="Agent信息")
+
+
+class PoolStatsResponse(BaseModel):
+    """池统计响应"""
+    total_tenants: int = Field(..., description="租户总数")
+    total_agents: int = Field(..., description="Agent总数")
+    tenants: dict = Field(..., description="租户详情")
