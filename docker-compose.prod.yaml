@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ${DOCKER_USERNAME}/wms-backend:${IMAGE_TAG:-latest}
+    image: wms-backend:latest
     restart: unless-stopped
     environment:
       app_env: prod
@@ -14,8 +14,8 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - ./logs:/backend/logs
-    expose:
-      - "8000"
+    ports:
+      - "8010:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -31,10 +31,10 @@ services:
       start_period: 40s
 
   frontend:
-    image: ${DOCKER_USERNAME}/wms-frontend:${IMAGE_TAG:-latest}
+    image: wms-frontend:latest
     restart: unless-stopped
     ports:
-      - "${HTTP_PORT:-80}:80"
+      - "8011:80"
     depends_on:
       - backend
     networks:
