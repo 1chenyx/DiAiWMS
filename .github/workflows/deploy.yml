@@ -48,8 +48,10 @@ jobs:
               git clone https://github.com/${{ github.repository }}.git .
             fi
             
-            echo "创建 .env 文件..."
-            cat > .env << 'EOF'
+            echo "检查 .env 文件..."
+            if [ ! -f .env ]; then
+              echo "创建 .env 文件..."
+              cat > .env << 'EOF'
             # 数据库配置
             DB_HOST=db
             DB_PORT=5432
@@ -62,6 +64,9 @@ jobs:
             REDIS_PORT=6379
             REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
             EOF
+            else
+              echo ".env 文件已存在，跳过创建"
+            fi
             
             echo "构建后端镜像..."
             docker build -t wms-backend:latest ./webapi
