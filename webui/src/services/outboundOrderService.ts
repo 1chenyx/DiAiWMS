@@ -6,12 +6,22 @@ import { PaginationHelper } from '@/utils/pagination'
 export interface OutboundOrderItem {
   sku_id: number
   qty: number
+  weight?: number
+  volume?: number
+  price?: number
+  expiry_date?: number
+  batch_no?: string
+  production_date?: string
+  goods_location_id?: number
   remark?: string
 }
 
 export interface OutboundOrderCreate {
   customer_id: number
+  customer_name?: string
   warehouse_id: number
+  goods_owner_id?: number
+  goods_owner_name?: string
   remark?: string
   items: OutboundOrderItem[]
 }

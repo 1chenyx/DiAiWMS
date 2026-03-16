@@ -221,7 +221,7 @@ const formRules = reactive<FormRules>({
   order_ids: [
     { 
       required: true, 
-      validator: (rule: any, value: any, callback: any) => {
+      validator: (_rule: any, value: any, callback: any) => {
         if (!value || value.length === 0) {
           callback(new Error('请至少选择一个出库订单'))
         } else {

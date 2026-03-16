@@ -317,13 +317,15 @@ const getAvatarColor = (name: string | undefined) => {
   return colors[index]
 }
 
-const getRoleName = (role: number | undefined) => {
+const getRoleName = (role: number | string | undefined) => {
   const roleMap: Record<number, string> = {
     1: '管理员',
     2: '操作员',
     3: '查看员'
   }
-  return role ? roleMap[role] || '未知角色' : '未登录'
+  if (role === undefined) return '未登录'
+  const roleNum = typeof role === 'string' ? parseInt(role) : role
+  return roleMap[roleNum] || '未知角色'
 }
 
 watch(

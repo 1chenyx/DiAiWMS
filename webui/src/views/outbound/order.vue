@@ -276,6 +276,13 @@ interface OrderItemWithSku extends OutboundOrderItem {
   sku_name?: string
   spu_name?: string
   spu_id?: number
+  weight?: number
+  volume?: number
+  price?: number
+  expiry_date?: number
+  batch_no?: string
+  production_date?: string
+  goods_location_id?: number
 }
 
 const formData = reactive({

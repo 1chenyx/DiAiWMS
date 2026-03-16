@@ -1,6 +1,7 @@
 services:
   backend:
     image: ${IMAGE:-wms-backend:latest}
+    pull_policy: never
     restart: unless-stopped
     environment:
       app_env: prod
@@ -32,6 +33,7 @@ services:
 
   frontend:
     image: ${IMAGE:-wms-frontend:latest}
+    pull_policy: never
     restart: unless-stopped
     ports:
       - "8011:80"

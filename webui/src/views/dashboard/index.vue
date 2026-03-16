@@ -286,7 +286,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { 
   Box, ArrowUp, ArrowDown, Timer, Upload, Download, 
-  Search, Document, ArrowRight, Check, Close, Refresh
+  Search, Document, ArrowRight, Check, Refresh
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 

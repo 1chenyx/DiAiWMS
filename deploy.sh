@@ -34,8 +34,8 @@ fi
 echo "停止旧容器..."
 docker compose -f docker-compose.prod.yaml down || true
 
-echo "启动新容器..."
-docker compose -f docker-compose.prod.yaml up -d
+echo "启动新容器（不拉取镜像）..."
+docker compose -f docker-compose.prod.yaml up -d --no-pull
 
 echo "等待服务启动..."
 sleep 10

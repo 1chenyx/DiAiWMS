@@ -319,7 +319,7 @@ const registerForm = reactive<EnterpriseRegisterInput & { confirm_password: stri
   admin_email: ''
 })
 
-const validateConfirmPassword = (rule: any, value: string, callback: any) => {
+const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
   if (value !== registerForm.admin_password) {
     callback(new Error('两次输入的密码不一致'))
   } else {
