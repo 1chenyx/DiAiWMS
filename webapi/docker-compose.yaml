@@ -1,16 +1,13 @@
 services:
 
   backend:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile
-    image: webapi:v1.0.0  # 强烈建议不要用 :latest
+    image: webapi:v1.0.0
+    pull_policy: never
     restart: unless-stopped
     environment:
       app_env: prod
     volumes:
       - /data/webapi/logs:/backend/logs
     ports:
-      - "8010:8000"
-    command: "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 5 --log-level info"
-#    command: "gunicorn app.main:app -c config/gunicorn.conf.py"  # 追加安装 gunicorn
+      - "8010:8010"
+    command: "uvicorn app.main:app --host 0.0.0.0 --port 8010 --workers 5 --log-level info"

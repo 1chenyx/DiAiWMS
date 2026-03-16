@@ -35,7 +35,7 @@ COPY alembic.ini ./
 
 RUN mkdir -p /backend/logs && chmod 777 /backend/logs
 
-EXPOSE 8000
+EXPOSE 8010
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8010/api/ping || exit 1

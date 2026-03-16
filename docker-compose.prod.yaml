@@ -16,7 +16,7 @@ services:
     volumes:
       - ./logs:/backend/logs
     ports:
-      - "8010:8000"
+      - "8010:8010"
     depends_on:
       db:
         condition: service_healthy
@@ -25,7 +25,7 @@ services:
     networks:
       - wms-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/ping"]
+      test: ["CMD", "curl", "-f", "http://localhost:8010/api/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -36,13 +36,13 @@ services:
     pull_policy: never
     restart: unless-stopped
     ports:
-      - "8011:80"
+      - "8011:8011"
     depends_on:
       - backend
     networks:
       - wms-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8011/health"]
       interval: 30s
       timeout: 10s
       retries: 3
