@@ -54,14 +54,12 @@ jobs:
             if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null 2>&1; then
               echo "安装 docker-compose..."
               
-              # 方式1: 尝试使用 apt/yum 安装
               if command -v apt-get &> /dev/null; then
                 apt-get update && apt-get install -y docker-compose-plugin docker-compose 2>/dev/null || true
               elif command -v yum &> /dev/null; then
                 yum install -y docker-compose-plugin docker-compose 2>/dev/null || true
               fi
               
-              # 方式2: 如果还没有，尝试 pip
               if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null 2>&1; then
                 if command -v pip3 &> /dev/null; then
                   pip3 install docker-compose 2>/dev/null || true
@@ -94,37 +92,40 @@ jobs:
               ENV_BACKUP=$(cat .env)
             fi
             
-            echo "拉取最新代码..."
+            echo "强制重新克隆代码（确保获取最新版本）..."
+            
+            # 清理所有文件（包括 .git 目录）
+            rm -rf * 2>/dev/null
+            rm -rf .git 2>/dev/null
+            rm -rf .[!.]* 2>/dev/null
+            
             CLONE_SUCCESS=false
             
-            if [ -d ".git" ]; then
-              echo "已有 git 仓库，尝试更新..."
-              git fetch origin && git reset --hard origin/main && CLONE_SUCCESS=true || echo "git fetch 失败"
+            # 尝试多个 git 源
+            echo "尝试 GitHub 直连..."
+            if git clone --depth 1 https://github.com/${{ github.repository }}.git . 2>/dev/null; then
+              CLONE_SUCCESS=true
+              echo "GitHub 克隆成功"
             fi
             
             if [ "$CLONE_SUCCESS" = false ]; then
-              echo "克隆代码仓库..."
-              # 清理目录
-              rm -rf * 2>/dev/null
-              rm -rf .[!.]* 2>/dev/null
-              
-              # 尝试多个 git 源
-              if git clone https://github.com/${{ github.repository }}.git . 2>/dev/null; then
-                CLONE_SUCCESS=true
-                echo "GitHub 克隆成功"
-              elif git clone https://gitclone.com/github.com/${{ github.repository }}.git . 2>/dev/null; then
+              echo "尝试 GitClone 镜像..."
+              if git clone --depth 1 https://gitclone.com/github.com/${{ github.repository }}.git . 2>/dev/null; then
                 CLONE_SUCCESS=true
                 echo "GitClone 镜像克隆成功"
-              elif git clone https://hub.fastgit.xyz/${{ github.repository }}.git . 2>/dev/null; then
-                CLONE_SUCCESS=true
-                echo "FastGit 镜像克隆成功"
-              else
-                echo "警告: 所有克隆方式都失败了"
               fi
             fi
             
             if [ "$CLONE_SUCCESS" = false ]; then
-              echo "错误: 无法拉取代码，请检查网络连接"
+              echo "尝试 FastGit 镜像..."
+              if git clone --depth 1 https://hub.fastgit.xyz/${{ github.repository }}.git . 2>/dev/null; then
+                CLONE_SUCCESS=true
+                echo "FastGit 镜像克隆成功"
+              fi
+            fi
+            
+            if [ "$CLONE_SUCCESS" = false ]; then
+              echo "错误: 所有克隆方式都失败了，请检查网络连接"
               exit 1
             fi
             
@@ -158,6 +159,10 @@ jobs:
               ls -la
               exit 1
             fi
+            
+            echo "显示 Dockerfile 内容（确认版本）..."
+            echo "=== webapi/Dockerfile ==="
+            head -20 ./webapi/Dockerfile
             
             echo "构建后端镜像..."
             docker build -t wms-backend:latest ./webapi
