@@ -31,10 +31,19 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            echo "检查并安装 git..."
+            echo "检查并安装必要工具..."
+            
+            # 安装 git
             if ! command -v git &> /dev/null; then
               echo "安装 git..."
-              apt-get update && apt-get install -y git || yum install -y git
+              apt-get update && apt-get install -y git || yum install -y git || apk add git
+            fi
+            
+            # 检查 docker-compose
+            if ! command -v docker-compose &> /dev/null; then
+              echo "安装 docker-compose..."
+              curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              chmod +x /usr/local/bin/docker-compose
             fi
             
             echo "创建部署目录..."
@@ -43,8 +52,12 @@ jobs:
             
             echo "拉取最新代码..."
             if [ -d ".git" ]; then
-              git pull origin main
+              git fetch origin
+              git reset --hard origin/main
             else
+              # 清理目录后重新克隆
+              rm -rf *
+              rm -rf .*
               git clone https://github.com/${{ github.repository }}.git .
             fi
             
@@ -75,16 +88,16 @@ jobs:
             docker build -t wms-frontend:latest ./webui
             
             echo "停止旧容器..."
-            docker-compose -f docker-compose.prod.yaml down || docker compose -f docker-compose.prod.yaml down || true
+            docker-compose -f docker-compose.prod.yaml down || true
             
             echo "启动新容器..."
-            docker-compose -f docker-compose.prod.yaml up -d || docker compose -f docker-compose.prod.yaml up -d
+            docker-compose -f docker-compose.prod.yaml up -d
             
             echo "清理无用镜像..."
             docker image prune -f
             
             echo "部署完成！"
-            docker-compose -f docker-compose.prod.yaml ps || docker compose -f docker-compose.prod.yaml ps
+            docker-compose -f docker-compose.prod.yaml ps
 
       - name: Health check
         run: |
