@@ -22,7 +22,6 @@ RUN pip install --upgrade pip --no-warn-script-location && \
 
 COPY config ./config
 COPY app ./app
-COPY alembic.ini ./
 
 RUN mkdir -p /backend/logs && chmod 777 /backend/logs
 
