@@ -36,6 +36,25 @@ jobs:
             echo "WMS 智能仓储系统 - 自动部署"
             echo "=========================================="
             
+            echo "配置 Docker 镜像加速器..."
+            mkdir -p /etc/docker
+            cat > /etc/docker/daemon.json << 'DOCKEREOF'
+            {
+              "registry-mirrors": [
+                "https://docker.m.daocloud.io",
+                "https://docker.1panel.live",
+                "https://hub.rat.dev",
+                "https://dockerhub.icu"
+              ]
+            }
+            DOCKEREOF
+            
+            echo "重启 Docker 服务..."
+            systemctl daemon-reload
+            systemctl restart docker || service docker restart || true
+            
+            sleep 5
+            
             echo "检查并安装必要工具..."
             
             # 安装 git
