@@ -17,18 +17,22 @@ fi
 source $ENV_FILE
 
 echo "环境配置:"
-echo "  - Docker Username: ${DOCKER_USERNAME}"
 echo "  - Image Tag: ${IMAGE_TAG:-latest}"
 echo ""
 
-echo "登录 Docker Hub..."
-echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+# 检查是否需要构建镜像
+BUILD_IMAGES=${BUILD_IMAGES:-true}
 
-echo "拉取最新镜像..."
-docker compose -f docker-compose.prod.yaml pull
+if [ "$BUILD_IMAGES" = "true" ]; then
+    echo "构建后端镜像..."
+    docker build -t wms-backend:${IMAGE_TAG:-latest} ./webapi
+    
+    echo "构建前端镜像..."
+    docker build -t wms-frontend:${IMAGE_TAG:-latest} ./webui
+fi
 
 echo "停止旧容器..."
-docker compose -f docker-compose.prod.yaml down
+docker compose -f docker-compose.prod.yaml down || true
 
 echo "启动新容器..."
 docker compose -f docker-compose.prod.yaml up -d

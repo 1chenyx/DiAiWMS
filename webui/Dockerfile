@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM docker.m.daocloud.io/library/node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -8,7 +8,7 @@ RUN npm install --registry=https://registry.npmmirror.com
 COPY . .
 RUN npx vite build
 
-FROM nginx:alpine
+FROM docker.m.daocloud.io/library/nginx:alpine
 
 RUN apk add --no-cache tzdata && \
     cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \

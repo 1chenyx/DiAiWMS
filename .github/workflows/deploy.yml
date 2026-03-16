@@ -55,6 +55,14 @@ jobs:
             
             sleep 5
             
+            # 预拉取基础镜像（使用国内镜像源）
+            echo "预拉取基础镜像..."
+            docker pull docker.m.daocloud.io/library/postgres:16-alpine || true
+            docker pull docker.m.daocloud.io/library/redis:7-alpine || true
+            docker pull docker.m.daocloud.io/library/python:3.12-slim || true
+            docker pull docker.m.daocloud.io/library/node:20-alpine || true
+            docker pull docker.m.daocloud.io/library/nginx:alpine || true
+            
             echo "检查并安装必要工具..."
             
             # 安装 git

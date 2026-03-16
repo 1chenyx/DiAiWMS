@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS builder
+FROM docker.m.daocloud.io/library/python:3.12-slim AS builder
 
 WORKDIR /backend
 
@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
 
-FROM python:3.12-slim
+FROM docker.m.daocloud.io/library/python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/backend \
