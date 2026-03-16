@@ -18,6 +18,7 @@ on:
 
 env:
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_IMAGE: ${{ lower(secrets.DOCKER_USERNAME) }}
 
 jobs:
   build-and-push:
@@ -39,7 +40,7 @@ jobs:
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_USERNAME }}/wms-backend
+          images: ${{ env.DOCKER_IMAGE }}/wms-backend
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -60,7 +61,7 @@ jobs:
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_USERNAME }}/wms-frontend
+          images: ${{ env.DOCKER_IMAGE }}/wms-frontend
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -115,7 +116,7 @@ jobs:
             cat > docker-compose.prod.yaml << 'EOF'
             services:
               backend:
-                image: ${{ secrets.DOCKER_USERNAME }}/wms-backend:latest
+                image: ${{ env.DOCKER_IMAGE }}/wms-backend:latest
                 restart: unless-stopped
                 environment:
                   app_env: prod
@@ -146,7 +147,7 @@ jobs:
                   start_period: 40s
 
               frontend:
-                image: ${{ secrets.DOCKER_USERNAME }}/wms-frontend:latest
+                image: ${{ env.DOCKER_IMAGE }}/wms-frontend:latest
                 restart: unless-stopped
                 ports:
                   - "8011:80"
