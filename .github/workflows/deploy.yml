@@ -31,6 +31,12 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            echo "检查并安装 git..."
+            if ! command -v git &> /dev/null; then
+              echo "安装 git..."
+              apt-get update && apt-get install -y git || yum install -y git
+            fi
+            
             echo "创建部署目录..."
             mkdir -p ${{ secrets.DEPLOY_PATH }}
             cd ${{ secrets.DEPLOY_PATH }}
@@ -64,16 +70,16 @@ jobs:
             docker build -t wms-frontend:latest ./webui
             
             echo "停止旧容器..."
-            docker compose -f docker-compose.prod.yaml down || true
+            docker-compose -f docker-compose.prod.yaml down || docker compose -f docker-compose.prod.yaml down || true
             
             echo "启动新容器..."
-            docker compose -f docker-compose.prod.yaml up -d
+            docker-compose -f docker-compose.prod.yaml up -d || docker compose -f docker-compose.prod.yaml up -d
             
             echo "清理无用镜像..."
             docker image prune -f
             
             echo "部署完成！"
-            docker compose -f docker-compose.prod.yaml ps
+            docker-compose -f docker-compose.prod.yaml ps || docker compose -f docker-compose.prod.yaml ps
 
       - name: Health check
         run: |
