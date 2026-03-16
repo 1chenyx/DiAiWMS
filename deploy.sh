@@ -42,7 +42,7 @@ docker compose -f docker-compose.prod.yaml ps
 echo ""
 echo "健康检查..."
 for i in {1..30}; do
-    if curl -sf http://localhost/api/ping > /dev/null 2>&1; then
+    if curl -sf http://localhost:8010/api/ping > /dev/null 2>&1; then
         echo "✓ 后端服务正常"
         break
     fi
@@ -50,7 +50,7 @@ for i in {1..30}; do
     sleep 2
 done
 
-if curl -sf http://localhost/health > /dev/null 2>&1; then
+if curl -sf http://localhost:8011/health > /dev/null 2>&1; then
     echo "✓ 前端服务正常"
 else
     echo "✗ 前端服务异常"
@@ -64,5 +64,5 @@ echo ""
 echo "========================================"
 echo "部署完成！"
 echo "========================================"
-echo "访问地址: http://localhost"
+echo "访问地址: http://localhost:8011"
 echo ""

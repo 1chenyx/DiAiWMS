@@ -15,7 +15,7 @@ services:
     volumes:
       - ./logs:/backend/logs
     ports:
-      - "8000:8000"
+      - "8010:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -34,7 +34,7 @@ services:
     image: ${IMAGE:-wms-frontend:latest}
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "8011:80"
     depends_on:
       - backend
     networks:
