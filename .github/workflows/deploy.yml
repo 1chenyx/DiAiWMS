@@ -30,39 +30,109 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 30m
           script: |
+            echo "=========================================="
+            echo "WMS 智能仓储系统 - 自动部署"
+            echo "=========================================="
+            
             echo "检查并安装必要工具..."
             
             # 安装 git
             if ! command -v git &> /dev/null; then
               echo "安装 git..."
-              apt-get update && apt-get install -y git || yum install -y git || apk add git
+              if command -v apt-get &> /dev/null; then
+                apt-get update && apt-get install -y git
+              elif command -v yum &> /dev/null; then
+                yum install -y git
+              elif command -v apk &> /dev/null; then
+                apk add --no-cache git
+              fi
             fi
             
-            # 检查 docker-compose
-            if ! command -v docker-compose &> /dev/null; then
+            # 安装 docker-compose（多种方式尝试）
+            if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null 2>&1; then
               echo "安装 docker-compose..."
-              curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-              chmod +x /usr/local/bin/docker-compose
+              
+              # 方式1: 尝试使用 apt/yum 安装
+              if command -v apt-get &> /dev/null; then
+                apt-get update && apt-get install -y docker-compose-plugin docker-compose 2>/dev/null || true
+              elif command -v yum &> /dev/null; then
+                yum install -y docker-compose-plugin docker-compose 2>/dev/null || true
+              fi
+              
+              # 方式2: 如果还没有，尝试 pip
+              if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null 2>&1; then
+                if command -v pip3 &> /dev/null; then
+                  pip3 install docker-compose 2>/dev/null || true
+                elif command -v pip &> /dev/null; then
+                  pip install docker-compose 2>/dev/null || true
+                fi
+              fi
+            fi
+            
+            # 确定 compose 命令
+            if docker compose version &> /dev/null 2>&1; then
+              COMPOSE_CMD="docker compose"
+              echo "使用 docker compose (插件版)"
+            elif command -v docker-compose &> /dev/null; then
+              COMPOSE_CMD="docker-compose"
+              echo "使用 docker-compose (独立版)"
+            else
+              echo "错误: docker-compose 未安装，请手动安装"
+              exit 1
             fi
             
             echo "创建部署目录..."
             mkdir -p ${{ secrets.DEPLOY_PATH }}
             cd ${{ secrets.DEPLOY_PATH }}
             
-            echo "拉取最新代码..."
-            if [ -d ".git" ]; then
-              git fetch origin
-              git reset --hard origin/main
-            else
-              # 清理目录后重新克隆
-              rm -rf *
-              rm -rf .*
-              git clone https://github.com/${{ github.repository }}.git .
+            # 备份 .env 文件
+            ENV_BACKUP=""
+            if [ -f .env ]; then
+              echo "备份 .env 文件..."
+              ENV_BACKUP=$(cat .env)
             fi
             
-            echo "检查 .env 文件..."
-            if [ ! -f .env ]; then
+            echo "拉取最新代码..."
+            CLONE_SUCCESS=false
+            
+            if [ -d ".git" ]; then
+              echo "已有 git 仓库，尝试更新..."
+              git fetch origin && git reset --hard origin/main && CLONE_SUCCESS=true || echo "git fetch 失败"
+            fi
+            
+            if [ "$CLONE_SUCCESS" = false ]; then
+              echo "克隆代码仓库..."
+              # 清理目录
+              rm -rf * 2>/dev/null
+              rm -rf .[!.]* 2>/dev/null
+              
+              # 尝试多个 git 源
+              if git clone https://github.com/${{ github.repository }}.git . 2>/dev/null; then
+                CLONE_SUCCESS=true
+                echo "GitHub 克隆成功"
+              elif git clone https://gitclone.com/github.com/${{ github.repository }}.git . 2>/dev/null; then
+                CLONE_SUCCESS=true
+                echo "GitClone 镜像克隆成功"
+              elif git clone https://hub.fastgit.xyz/${{ github.repository }}.git . 2>/dev/null; then
+                CLONE_SUCCESS=true
+                echo "FastGit 镜像克隆成功"
+              else
+                echo "警告: 所有克隆方式都失败了"
+              fi
+            fi
+            
+            if [ "$CLONE_SUCCESS" = false ]; then
+              echo "错误: 无法拉取代码，请检查网络连接"
+              exit 1
+            fi
+            
+            # 恢复 .env 文件
+            if [ -n "$ENV_BACKUP" ]; then
+              echo "恢复 .env 文件..."
+              echo "$ENV_BACKUP" > .env
+            elif [ ! -f .env ]; then
               echo "创建 .env 文件..."
               cat > .env << 'EOF'
             # 数据库配置
@@ -81,6 +151,14 @@ jobs:
               echo ".env 文件已存在，跳过创建"
             fi
             
+            echo "检查代码目录..."
+            if [ ! -d "./webapi" ] || [ ! -d "./webui" ]; then
+              echo "错误: 代码目录不完整"
+              echo "当前目录内容:"
+              ls -la
+              exit 1
+            fi
+            
             echo "构建后端镜像..."
             docker build -t wms-backend:latest ./webapi
             
@@ -88,16 +166,21 @@ jobs:
             docker build -t wms-frontend:latest ./webui
             
             echo "停止旧容器..."
-            docker-compose -f docker-compose.prod.yaml down || true
+            $COMPOSE_CMD -f docker-compose.prod.yaml down || true
             
             echo "启动新容器..."
-            docker-compose -f docker-compose.prod.yaml up -d
+            $COMPOSE_CMD -f docker-compose.prod.yaml up -d
+            
+            echo "等待服务启动..."
+            sleep 10
             
             echo "清理无用镜像..."
             docker image prune -f
             
+            echo "=========================================="
             echo "部署完成！"
-            docker-compose -f docker-compose.prod.yaml ps
+            echo "=========================================="
+            $COMPOSE_CMD -f docker-compose.prod.yaml ps
 
       - name: Health check
         run: |
