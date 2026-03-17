@@ -259,15 +259,19 @@ jobs:
             
             # 等待服务启动
             echo "等待服务启动..."
-            sleep 20
+            sleep 30
+            
+            # 显示后端启动日志
+            echo "后端启动日志:"
+            $COMPOSE_CMD -f docker-compose.prod.yaml logs backend 2>&1 | tail -30
             
             # 健康检查
             echo "执行健康检查..."
             BACKEND_HEALTHY=false
             FRONTEND_HEALTHY=false
             
-            for i in {1..6}; do
-              echo "健康检查尝试 $i/6..."
+            for i in {1..10}; do
+              echo "健康检查尝试 $i/10..."
               
               BACKEND_CONTAINER=$(sudo docker ps -q -f name=backend)
               FRONTEND_CONTAINER=$(sudo docker ps -q -f name=frontend)
@@ -294,7 +298,15 @@ jobs:
             done
             
             if [ "$BACKEND_HEALTHY" = false ] || [ "$FRONTEND_HEALTHY" = false ]; then
-              echo "❌ 健康检查失败，执行回滚..."
+              echo "❌ 健康检查失败"
+              
+              echo "========== 后端日志 =========="
+              $COMPOSE_CMD -f docker-compose.prod.yaml logs backend 2>&1 | tail -50
+              
+              echo "========== 数据库日志 =========="
+              $COMPOSE_CMD -f docker-compose.prod.yaml logs db 2>&1 | tail -30
+              
+              echo "执行回滚..."
               
               if sudo docker inspect wms-backend:previous &> /dev/null; then
                 sudo docker tag wms-backend:previous wms-backend:current
