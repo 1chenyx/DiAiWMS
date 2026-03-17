@@ -253,17 +253,21 @@ jobs:
             $COMPOSE_CMD -f docker-compose.prod.yaml stop backend frontend 2>/dev/null || true
             $COMPOSE_CMD -f docker-compose.prod.yaml rm -f backend frontend 2>/dev/null || true
             
-            # 启动新容器
+            # 启动新容器（不带 --no-deps，让 compose 处理依赖）
             echo "启动新容器..."
-            $COMPOSE_CMD -f docker-compose.prod.yaml up -d --no-deps backend frontend
+            $COMPOSE_CMD -f docker-compose.prod.yaml up -d
             
-            # 等待服务启动
-            echo "等待服务启动..."
-            sleep 30
+            # 等待容器启动
+            echo "等待容器启动..."
+            sleep 15
             
-            # 显示后端启动日志
-            echo "后端启动日志:"
-            $COMPOSE_CMD -f docker-compose.prod.yaml logs backend 2>&1 | tail -30
+            # 显示容器状态
+            echo "========== 容器状态 =========="
+            sudo docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+            
+            # 显示后端日志
+            echo "========== 后端启动日志 =========="
+            $COMPOSE_CMD -f docker-compose.prod.yaml logs backend 2>&1 | tail -50
             
             # 健康检查
             echo "执行健康检查..."
@@ -300,8 +304,8 @@ jobs:
             if [ "$BACKEND_HEALTHY" = false ] || [ "$FRONTEND_HEALTHY" = false ]; then
               echo "❌ 健康检查失败"
               
-              echo "========== 后端日志 =========="
-              $COMPOSE_CMD -f docker-compose.prod.yaml logs backend 2>&1 | tail -50
+              echo "========== 后端完整日志 =========="
+              $COMPOSE_CMD -f docker-compose.prod.yaml logs backend 2>&1 | tail -100
               
               echo "========== 数据库日志 =========="
               $COMPOSE_CMD -f docker-compose.prod.yaml logs db 2>&1 | tail -30
