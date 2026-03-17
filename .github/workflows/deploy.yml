@@ -241,12 +241,12 @@ jobs:
               sudo docker tag wms-frontend:current wms-frontend:previous 2>/dev/null || true
             fi
             
-            # 构建新镜像
+            # 构建新镜像（使用 --no-cache 确保使用最新代码）
             echo "构建后端镜像..."
-            sudo docker build -t wms-backend:current ./webapi
+            sudo docker build --no-cache -t wms-backend:current ./webapi
             
             echo "构建前端镜像..."
-            sudo docker build -t wms-frontend:current ./webui
+            sudo docker build --no-cache -t wms-frontend:current ./webui
             
             # 停止旧容器
             echo "停止旧容器..."
