@@ -1,12 +1,12 @@
 # 请根据自身需求修改
-app_title: xApp-prod
-app_summary: xxApp-prod
-app_description: xxxApp-prod
+app_title: WMS智能仓储系统
+app_summary: WMS智能仓储系统
+app_description: WMS智能仓储系统 - 智能化仓储管理
 app_version: 1.0.0
 app_debug: false
 app_log_serialize: false
 app_log_outdir: ./logs
-app_disable_docs: true
+app_disable_docs: false
 app_allow_credentials: true
 app_allow_origins:
   - '*'
@@ -14,12 +14,13 @@ app_allow_methods:
   - '*'
 app_allow_headers:
   - '*'
-# #
-db_drivername: sqlite
-db_async_drivername: sqlite+aiosqlite
-db_database: app_prod.sqlite
-db_username:
-db_password:
-db_host:
-db_port:
-db_charset:
+# 数据库配置 - 使用 PostgreSQL 异步驱动
+# 注意：生产环境通过环境变量覆盖这些配置
+db_drivername: postgresql
+db_async_drivername: postgresql+asyncpg
+db_database: wms
+db_username: postgres
+db_password: ""
+db_host: db
+db_port: 5432
+db_charset: utf8

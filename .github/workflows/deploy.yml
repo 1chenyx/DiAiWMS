@@ -255,7 +255,7 @@ jobs:
             
             # 启动新容器
             echo "启动新容器..."
-            $COMPOSE_CMD -f docker-compose.prod.yaml up -d
+            $COMPOSE_CMD -f docker-compose.prod.yaml up -d --no-deps backend frontend
             
             # 等待服务启动
             echo "等待服务启动..."
