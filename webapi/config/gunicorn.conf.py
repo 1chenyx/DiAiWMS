@@ -4,7 +4,7 @@ import os
 # ========================
 # 绑定配置
 # ========================
-bind = "0.0.0.0:8000"  # 监听地址；若用 Unix Socket：bind = "unix:/tmp/gunicorn.sock"
+bind = "0.0.0.0:8010"  # 监听地址；若用 Unix Socket：bind = "unix:/tmp/gunicorn.sock"
 
 # ========================
 # Worker 配置（核心）

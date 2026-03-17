@@ -20,6 +20,31 @@ echo "环境配置:"
 echo "  - Image Tag: ${IMAGE_TAG:-latest}"
 echo ""
 
+# 检查 PostgreSQL 和 Redis 容器是否已存在
+DB_CONTAINER_EXISTS=false
+REDIS_CONTAINER_EXISTS=false
+
+if docker ps -a --format '{{.Names}}' | grep -q '^wms-db-1$\|^wms_db_1$\|^db$'; then
+    DB_CONTAINER_EXISTS=true
+    echo "PostgreSQL 容器已存在，跳过重建"
+fi
+
+if docker ps -a --format '{{.Names}}' | grep -q '^wms-redis-1$\|^wms_redis_1$\|^redis$'; then
+    REDIS_CONTAINER_EXISTS=true
+    echo "Redis 容器已存在，跳过重建"
+fi
+
+# 如果数据库容器不存在，才拉取镜像
+if [ "$DB_CONTAINER_EXISTS" = false ] || [ "$REDIS_CONTAINER_EXISTS" = false ]; then
+    echo "拉取数据库镜像..."
+    if [ "$DB_CONTAINER_EXISTS" = false ]; then
+        docker pull docker.m.daocloud.io/library/postgres:16-alpine || true
+    fi
+    if [ "$REDIS_CONTAINER_EXISTS" = false ]; then
+        docker pull docker.m.daocloud.io/library/redis:7-alpine || true
+    fi
+fi
+
 # 检查是否需要构建镜像
 BUILD_IMAGES=${BUILD_IMAGES:-true}
 
@@ -31,11 +56,12 @@ if [ "$BUILD_IMAGES" = "true" ]; then
     docker build -t wms-frontend:${IMAGE_TAG:-latest} ./webui
 fi
 
-echo "停止旧容器..."
-docker compose -f docker-compose.prod.yaml down || true
+echo "停止旧应用容器（保留数据库容器）..."
+docker compose -f docker-compose.prod.yaml stop backend frontend 2>/dev/null || true
+docker compose -f docker-compose.prod.yaml rm -f backend frontend 2>/dev/null || true
 
-echo "启动新容器（不拉取镜像）..."
-docker compose -f docker-compose.prod.yaml up -d --no-pull
+echo "启动新容器..."
+docker compose -f docker-compose.prod.yaml up -d
 
 echo "等待服务启动..."
 sleep 10

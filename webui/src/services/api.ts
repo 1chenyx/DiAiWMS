@@ -1,11 +1,9 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
 import { InterceptorManager } from '@/utils/interceptor'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-const API_VERSION = '/api/v1'
+import { API_CONFIG } from '@/config'
 
 const apiClient: AxiosInstance = axios.create({
-  baseURL: `${API_BASE_URL}${API_VERSION}`,
+  baseURL: API_CONFIG.FULL_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'

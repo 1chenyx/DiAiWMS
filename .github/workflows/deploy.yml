@@ -15,13 +15,118 @@ on:
         options:
           - production
           - staging
+      skip_tests:
+        description: '跳过测试'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE_NAME: ${{ github.repository }}/backend
+  FRONTEND_IMAGE_NAME: ${{ github.repository }}/frontend
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      backend_image: ${{ steps.meta-backend.outputs.tags }}
+      frontend_image: ${{ steps.meta-frontend.outputs.tags }}
+      image_digest: ${{ steps.build-backend.outputs.digest }}
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract metadata for frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push backend
+        id: build-backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./webapi
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+
+      - name: Build and push frontend
+        id: build-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./webui
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+
+      - name: Output build summary
+        run: |
+          echo "## 构建完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 后端镜像" >> $GITHUB_STEP_SUMMARY
+          echo "\`${{ steps.meta-backend.outputs.tags }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 前端镜像" >> $GITHUB_STEP_SUMMARY
+          echo "\`${{ steps.meta-frontend.outputs.tags }}\`" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+      url: http://${{ secrets.DEPLOY_HOST }}:8011
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare deployment files
+        run: |
+          mkdir -p deploy
+          cp docker-compose.prod.yaml deploy/
+          cp -r docker deploy/ 2>/dev/null || true
 
       - name: Deploy to remote server
         uses: appleboy/ssh-action@v1.0.3
@@ -30,197 +135,217 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          command_timeout: 30m
+          command_timeout: 20m
           script: |
+            set -e
+            
             echo "=========================================="
             echo "WMS 智能仓储系统 - 自动部署"
+            echo "环境: ${{ github.event.inputs.environment || 'production' }}"
+            echo "镜像版本: ${{ github.sha }}"
             echo "=========================================="
             
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/wms' }}"
+            BACKEND_IMAGE="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}@${{ needs.build.outputs.image_digest }}"
+            FRONTEND_IMAGE="${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}@${{ needs.build.outputs.image_digest }}"
+            
+            echo "创建部署目录..."
+            mkdir -p "$DEPLOY_PATH"
+            cd "$DEPLOY_PATH"
+            
+            # 配置 Docker 镜像加速器
             echo "配置 Docker 镜像加速器..."
-            mkdir -p /etc/docker
-            cat > /etc/docker/daemon.json << 'DOCKEREOF'
+            sudo mkdir -p /etc/docker
+            sudo tee /etc/docker/daemon.json > /dev/null << 'DOCKEREOF'
             {
               "registry-mirrors": [
                 "https://docker.m.daocloud.io",
                 "https://docker.1panel.live",
-                "https://hub.rat.dev",
-                "https://dockerhub.icu"
+                "https://hub.rat.dev"
               ]
             }
             DOCKEREOF
             
-            echo "重启 Docker 服务..."
-            systemctl daemon-reload
-            systemctl restart docker || service docker restart || true
-            
-            sleep 5
-            
-            # 预拉取基础镜像（使用国内镜像源）
-            echo "预拉取基础镜像..."
-            docker pull docker.m.daocloud.io/library/postgres:16-alpine || true
-            docker pull docker.m.daocloud.io/library/redis:7-alpine || true
-            docker pull docker.m.daocloud.io/library/python:3.12-slim || true
-            docker pull docker.m.daocloud.io/library/node:20-alpine || true
-            docker pull docker.m.daocloud.io/library/nginx:alpine || true
-            
-            echo "检查并安装必要工具..."
-            
-            # 安装 git
-            if ! command -v git &> /dev/null; then
-              echo "安装 git..."
-              if command -v apt-get &> /dev/null; then
-                apt-get update && apt-get install -y git
-              elif command -v yum &> /dev/null; then
-                yum install -y git
-              elif command -v apk &> /dev/null; then
-                apk add --no-cache git
-              fi
+            # 重启 Docker（仅在配置变更时）
+            if ! sudo diff -q /etc/docker/daemon.json /etc/docker/daemon.json.bak 2>/dev/null; then
+              echo "重启 Docker 服务..."
+              sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+              sudo systemctl daemon-reload
+              sudo systemctl restart docker || sudo service docker restart || true
+              sleep 5
             fi
             
-            # 安装 docker-compose（多种方式尝试）
-            if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null 2>&1; then
-              echo "安装 docker-compose..."
-              
-              if command -v apt-get &> /dev/null; then
-                apt-get update && apt-get install -y docker-compose-plugin docker-compose 2>/dev/null || true
-              elif command -v yum &> /dev/null; then
-                yum install -y docker-compose-plugin docker-compose 2>/dev/null || true
-              fi
-              
-              if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null 2>&1; then
-                if command -v pip3 &> /dev/null; then
-                  pip3 install docker-compose 2>/dev/null || true
-                elif command -v pip &> /dev/null; then
-                  pip install docker-compose 2>/dev/null || true
-                fi
-              fi
-            fi
+            # 登录 GitHub Container Registry
+            echo "登录 GitHub Container Registry..."
+            echo "${{ secrets.GITHUB_TOKEN }}" | sudo docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
             
             # 确定 compose 命令
-            if docker compose version &> /dev/null 2>&1; then
+            if docker compose version &> /dev/null; then
               COMPOSE_CMD="docker compose"
-              echo "使用 docker compose (插件版)"
             elif command -v docker-compose &> /dev/null; then
               COMPOSE_CMD="docker-compose"
-              echo "使用 docker-compose (独立版)"
             else
-              echo "错误: docker-compose 未安装，请手动安装"
+              echo "错误: docker-compose 未安装"
               exit 1
             fi
+            echo "使用: $COMPOSE_CMD"
             
-            echo "创建部署目录..."
-            mkdir -p ${{ secrets.DEPLOY_PATH }}
-            cd ${{ secrets.DEPLOY_PATH }}
+            # 拉取新镜像
+            echo "拉取新镜像..."
+            sudo docker pull "$BACKEND_IMAGE"
+            sudo docker pull "$FRONTEND_IMAGE"
             
-            # 备份 .env 文件
-            ENV_BACKUP=""
-            if [ -f .env ]; then
-              echo "备份 .env 文件..."
-              ENV_BACKUP=$(cat .env)
+            # 备份当前镜像标签（用于回滚）
+            echo "备份当前镜像..."
+            if sudo docker inspect wms-backend:current &> /dev/null; then
+              sudo docker tag wms-backend:current wms-backend:previous 2>/dev/null || true
+            fi
+            if sudo docker inspect wms-frontend:current &> /dev/null; then
+              sudo docker tag wms-frontend:current wms-frontend:previous 2>/dev/null || true
             fi
             
-            echo "强制重新克隆代码（确保获取最新版本）..."
+            # 标记新镜像
+            sudo docker tag "$BACKEND_IMAGE" wms-backend:current
+            sudo docker tag "$FRONTEND_IMAGE" wms-frontend:current
             
-            # 清理所有文件（包括 .git 目录）
-            rm -rf * 2>/dev/null
-            rm -rf .git 2>/dev/null
-            rm -rf .[!.]* 2>/dev/null
-            
-            CLONE_SUCCESS=false
-            
-            # 尝试多个 git 源
-            echo "尝试 GitHub 直连..."
-            if git clone --depth 1 https://github.com/${{ github.repository }}.git . 2>/dev/null; then
-              CLONE_SUCCESS=true
-              echo "GitHub 克隆成功"
-            fi
-            
-            if [ "$CLONE_SUCCESS" = false ]; then
-              echo "尝试 GitClone 镜像..."
-              if git clone --depth 1 https://gitclone.com/github.com/${{ github.repository }}.git . 2>/dev/null; then
-                CLONE_SUCCESS=true
-                echo "GitClone 镜像克隆成功"
-              fi
-            fi
-            
-            if [ "$CLONE_SUCCESS" = false ]; then
-              echo "尝试 FastGit 镜像..."
-              if git clone --depth 1 https://hub.fastgit.xyz/${{ github.repository }}.git . 2>/dev/null; then
-                CLONE_SUCCESS=true
-                echo "FastGit 镜像克隆成功"
-              fi
-            fi
-            
-            if [ "$CLONE_SUCCESS" = false ]; then
-              echo "错误: 所有克隆方式都失败了，请检查网络连接"
-              exit 1
-            fi
-            
-            # 恢复 .env 文件
-            if [ -n "$ENV_BACKUP" ]; then
-              echo "恢复 .env 文件..."
-              echo "$ENV_BACKUP" > .env
-            elif [ ! -f .env ]; then
+            # 确保 .env 文件存在
+            if [ ! -f .env ]; then
               echo "创建 .env 文件..."
-              cat > .env << 'EOF'
-            # 数据库配置
+              cat > .env << EOF
             DB_HOST=db
             DB_PORT=5432
             DB_DATABASE=wms
             DB_USERNAME=postgres
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            
-            # Redis 配置
             REDIS_HOST=redis
             REDIS_PORT=6379
             REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+            IMAGE_BACKEND=wms-backend:current
+            IMAGE_FRONTEND=wms-frontend:current
             EOF
             else
-              echo ".env 文件已存在，跳过创建"
+              # 更新镜像变量
+              sed -i 's|^IMAGE_BACKEND=.*|IMAGE_BACKEND=wms-backend:current|' .env 2>/dev/null || echo "IMAGE_BACKEND=wms-backend:current" >> .env
+              sed -i 's|^IMAGE_FRONTEND=.*|IMAGE_FRONTEND=wms-frontend:current|' .env 2>/dev/null || echo "IMAGE_FRONTEND=wms-frontend:current" >> .env
             fi
             
-            echo "检查代码目录..."
-            if [ ! -d "./webapi" ] || [ ! -d "./webui" ]; then
-              echo "错误: 代码目录不完整"
-              echo "当前目录内容:"
-              ls -la
+            # 拉取基础服务镜像（如果不存在）
+            if ! sudo docker ps -a --format '{{.Names}}' | grep -q 'wms-db'; then
+              echo "拉取 PostgreSQL 镜像..."
+              sudo docker pull docker.m.daocloud.io/library/postgres:16-alpine
+            fi
+            if ! sudo docker ps -a --format '{{.Names}}' | grep -q 'wms-redis'; then
+              echo "拉取 Redis 镜像..."
+              sudo docker pull docker.m.daocloud.io/library/redis:7-alpine
+            fi
+            
+            # 滚动更新应用容器
+            echo "执行滚动更新..."
+            $COMPOSE_CMD -f docker-compose.prod.yaml up -d --no-deps --build backend frontend
+            
+            # 等待服务启动
+            echo "等待服务启动..."
+            sleep 20
+            
+            # 健康检查
+            echo "执行健康检查..."
+            BACKEND_HEALTHY=false
+            FRONTEND_HEALTHY=false
+            
+            for i in {1..6}; do
+              echo "健康检查尝试 $i/6..."
+              
+              if sudo docker exec $(sudo docker ps -q -f name=backend) curl -sf http://localhost:8010/api/ping &>/dev/null; then
+                BACKEND_HEALTHY=true
+                echo "✓ 后端服务健康"
+              fi
+              
+              if sudo docker exec $(sudo docker ps -q -f name=frontend) curl -sf http://localhost:8011/ &>/dev/null; then
+                FRONTEND_HEALTHY=true
+                echo "✓ 前端服务健康"
+              fi
+              
+              if [ "$BACKEND_HEALTHY" = true ] && [ "$FRONTEND_HEALTHY" = true ]; then
+                break
+              fi
+              
+              sleep 10
+            done
+            
+            if [ "$BACKEND_HEALTHY" = false ] || [ "$FRONTEND_HEALTHY" = false ]; then
+              echo "❌ 健康检查失败，执行回滚..."
+              
+              if sudo docker inspect wms-backend:previous &> /dev/null; then
+                sudo docker tag wms-backend:previous wms-backend:current
+                $COMPOSE_CMD -f docker-compose.prod.yaml up -d --no-deps backend
+              fi
+              
+              if sudo docker inspect wms-frontend:previous &> /dev/null; then
+                sudo docker tag wms-frontend:previous wms-frontend:current
+                $COMPOSE_CMD -f docker-compose.prod.yaml up -d --no-deps frontend
+              fi
+              
+              echo "回滚完成，请检查日志"
               exit 1
             fi
             
-            echo "显示 Dockerfile 内容（确认版本）..."
-            echo "=== webapi/Dockerfile ==="
-            head -20 ./webapi/Dockerfile
-            
-            echo "构建后端镜像..."
-            docker build -t wms-backend:latest ./webapi
-            
-            echo "构建前端镜像..."
-            docker build -t wms-frontend:latest ./webui
-            
-            echo "停止旧容器..."
-            $COMPOSE_CMD -f docker-compose.prod.yaml down || true
-            
-            echo "启动新容器（不拉取镜像）..."
-            $COMPOSE_CMD -f docker-compose.prod.yaml up -d --no-pull
-            
-            echo "等待服务启动..."
-            sleep 10
-            
+            # 清理旧镜像
             echo "清理无用镜像..."
-            docker image prune -f
+            sudo docker image prune -af --filter "until=24h"
+            
+            # 登出 Registry
+            sudo docker logout ${{ env.REGISTRY }}
             
             echo "=========================================="
-            echo "部署完成！"
+            echo "✓ 部署完成！"
             echo "=========================================="
             $COMPOSE_CMD -f docker-compose.prod.yaml ps
 
-      - name: Health check
+      - name: Verify deployment
         run: |
-          echo "等待服务启动..."
-          sleep 30
+          echo "验证外部访问..."
           
-          curl -f http://${{ secrets.DEPLOY_HOST }}:8010/api/ping || exit 1
-          echo "后端服务正常 (端口 8010)"
+          # 后端健康检查
+          for i in {1..10}; do
+            if curl -sf http://${{ secrets.DEPLOY_HOST }}:8010/api/ping; then
+              echo "✓ 后端服务可访问 (端口 8010)"
+              break
+            fi
+            echo "等待后端服务... ($i/10)"
+            sleep 5
+          done
           
-          curl -f http://${{ secrets.DEPLOY_HOST }}:8011/ || exit 1
-          echo "前端服务正常 (端口 8011)"
+          # 前端健康检查
+          for i in {1..10}; do
+            if curl -sf http://${{ secrets.DEPLOY_HOST }}:8011/; then
+              echo "✓ 前端服务可访问 (端口 8011)"
+              break
+            fi
+            echo "等待前端服务... ($i/10)"
+            sleep 5
+          done
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::部署失败，请检查服务器日志"
+          echo "## ❌ 部署失败" >> $GITHUB_STEP_SUMMARY
+          echo "请检查服务器日志获取详细信息" >> $GITHUB_STEP_SUMMARY
+
+  cleanup:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: success()
+    
+    steps:
+      - name: Clean up old images
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            echo "清理超过 7 天的未使用镜像..."
+            sudo docker image prune -af --filter "until=168h"
+            sudo docker system prune -f

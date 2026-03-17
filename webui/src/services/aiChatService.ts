@@ -1,4 +1,5 @@
 import { http } from './api'
+import { API_CONFIG } from '@/config'
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -41,12 +42,10 @@ class AIChatService {
   }
 
   async stream(request: ChatRequest): Promise<ReadableStream<Uint8Array>> {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-    const API_VERSION = '/api/v1'
     const token = localStorage.getItem('token')
     const tenantId = localStorage.getItem('tenant_id')
 
-    const response = await fetch(`${API_BASE_URL}${API_VERSION}/ai/chat/stream`, {
+    const response = await fetch(`${API_CONFIG.FULL_URL}/ai/chat/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
