@@ -23,8 +23,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE_NAME: ${{ github.repository }}/backend
-  FRONTEND_IMAGE_NAME: ${{ github.repository }}/frontend
 
 jobs:
   build:
@@ -53,11 +51,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Get lowercase repo name
+        id: lowercase
+        run: echo "repo=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Extract metadata for backend
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.lowercase.outputs.repo }}/backend
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -67,7 +69,7 @@ jobs:
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.lowercase.outputs.repo }}/frontend
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -121,6 +123,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Get lowercase repo name
+        id: lowercase
+        run: echo "repo=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Prepare deployment files
         run: |
           mkdir -p deploy
@@ -145,8 +151,12 @@ jobs:
             echo "=========================================="
             
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/wms' }}"
-            BACKEND_IMAGE="${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}@${{ needs.build.outputs.image_digest }}"
-            FRONTEND_IMAGE="${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}@${{ needs.build.outputs.image_digest }}"
+            REPO_NAME="${{ steps.lowercase.outputs.repo }}"
+            BACKEND_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${REPO_NAME}/backend@${{ needs.build.outputs.image_digest }}"
+            FRONTEND_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${REPO_NAME}/frontend@${{ needs.build.outputs.image_digest }}"
+            
+            echo "后端镜像: $BACKEND_IMAGE"
+            echo "前端镜像: $FRONTEND_IMAGE"
             
             echo "创建部署目录..."
             mkdir -p "$DEPLOY_PATH"
