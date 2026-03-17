@@ -15,11 +15,6 @@ on:
         options:
           - production
           - staging
-      skip_tests:
-        description: '跳过测试'
-        required: false
-        default: false
-        type: boolean
 
 env:
   REGISTRY: ghcr.io
@@ -31,8 +26,6 @@ jobs:
       contents: read
       packages: write
     outputs:
-      backend_image: ${{ steps.meta-backend.outputs.tags }}
-      frontend_image: ${{ steps.meta-frontend.outputs.tags }}
       image_digest: ${{ steps.build-backend.outputs.digest }}
     
     steps:
@@ -61,9 +54,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.lowercase.outputs.repo }}/backend
           tags: |
-            type=ref,event=branch
             type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
 
       - name: Extract metadata for frontend
         id: meta-frontend
@@ -71,9 +63,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.lowercase.outputs.repo }}/frontend
           tags: |
-            type=ref,event=branch
             type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
 
       - name: Build and push backend
         id: build-backend
@@ -123,16 +114,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get lowercase repo name
-        id: lowercase
-        run: echo "repo=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
-      - name: Prepare deployment files
-        run: |
-          mkdir -p deploy
-          cp docker-compose.prod.yaml deploy/
-          cp -r docker deploy/ 2>/dev/null || true
-
       - name: Deploy to remote server
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -140,7 +121,7 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          command_timeout: 20m
+          command_timeout: 30m
           script: |
             set -e
             
@@ -151,12 +132,6 @@ jobs:
             echo "=========================================="
             
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/wms' }}"
-            REPO_NAME="${{ steps.lowercase.outputs.repo }}"
-            BACKEND_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${REPO_NAME}/backend@${{ needs.build.outputs.image_digest }}"
-            FRONTEND_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${REPO_NAME}/frontend@${{ needs.build.outputs.image_digest }}"
-            
-            echo "后端镜像: $BACKEND_IMAGE"
-            echo "前端镜像: $FRONTEND_IMAGE"
             
             echo "创建部署目录..."
             mkdir -p "$DEPLOY_PATH"
@@ -184,10 +159,6 @@ jobs:
               sleep 5
             fi
             
-            # 登录 GitHub Container Registry
-            echo "登录 GitHub Container Registry..."
-            echo "${{ secrets.GITHUB_TOKEN }}" | sudo docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
-            
             # 确定 compose 命令
             if docker compose version &> /dev/null; then
               COMPOSE_CMD="docker compose"
@@ -199,26 +170,45 @@ jobs:
             fi
             echo "使用: $COMPOSE_CMD"
             
-            # 拉取新镜像
-            echo "拉取新镜像..."
-            sudo docker pull "$BACKEND_IMAGE"
-            sudo docker pull "$FRONTEND_IMAGE"
-            
-            # 备份当前镜像标签（用于回滚）
-            echo "备份当前镜像..."
-            if sudo docker inspect wms-backend:current &> /dev/null; then
-              sudo docker tag wms-backend:current wms-backend:previous 2>/dev/null || true
-            fi
-            if sudo docker inspect wms-frontend:current &> /dev/null; then
-              sudo docker tag wms-frontend:current wms-frontend:previous 2>/dev/null || true
+            # 备份 .env 文件
+            ENV_BACKUP=""
+            if [ -f .env ]; then
+              echo "备份 .env 文件..."
+              ENV_BACKUP=$(cat .env)
             fi
             
-            # 标记新镜像
-            sudo docker tag "$BACKEND_IMAGE" wms-backend:current
-            sudo docker tag "$FRONTEND_IMAGE" wms-frontend:current
+            # 清理旧代码
+            echo "清理旧代码..."
+            rm -rf * 2>/dev/null || true
+            rm -rf .git 2>/dev/null || true
+            rm -rf .[!.]* 2>/dev/null || true
             
-            # 确保 .env 文件存在
-            if [ ! -f .env ]; then
+            # 克隆代码
+            echo "克隆最新代码..."
+            CLONE_SUCCESS=false
+            
+            if git clone --depth 1 https://github.com/${{ github.repository }}.git . 2>/dev/null; then
+              CLONE_SUCCESS=true
+              echo "GitHub 克隆成功"
+            fi
+            
+            if [ "$CLONE_SUCCESS" = false ]; then
+              if git clone --depth 1 https://gitclone.com/github.com/${{ github.repository }}.git . 2>/dev/null; then
+                CLONE_SUCCESS=true
+                echo "GitClone 镜像克隆成功"
+              fi
+            fi
+            
+            if [ "$CLONE_SUCCESS" = false ]; then
+              echo "错误: 克隆失败"
+              exit 1
+            fi
+            
+            # 恢复 .env 文件
+            if [ -n "$ENV_BACKUP" ]; then
+              echo "恢复 .env 文件..."
+              echo "$ENV_BACKUP" > .env
+            elif [ ! -f .env ]; then
               echo "创建 .env 文件..."
               cat > .env << EOF
             DB_HOST=db
@@ -232,25 +222,40 @@ jobs:
             IMAGE_BACKEND=wms-backend:current
             IMAGE_FRONTEND=wms-frontend:current
             EOF
-            else
-              # 更新镜像变量
-              sed -i 's|^IMAGE_BACKEND=.*|IMAGE_BACKEND=wms-backend:current|' .env 2>/dev/null || echo "IMAGE_BACKEND=wms-backend:current" >> .env
-              sed -i 's|^IMAGE_FRONTEND=.*|IMAGE_FRONTEND=wms-frontend:current|' .env 2>/dev/null || echo "IMAGE_FRONTEND=wms-frontend:current" >> .env
             fi
             
-            # 拉取基础服务镜像（如果不存在）
-            if ! sudo docker ps -a --format '{{.Names}}' | grep -q 'wms-db'; then
-              echo "拉取 PostgreSQL 镜像..."
-              sudo docker pull docker.m.daocloud.io/library/postgres:16-alpine
+            # 拉取基础镜像
+            echo "拉取基础镜像..."
+            sudo docker pull docker.m.daocloud.io/library/python:3.12-slim || true
+            sudo docker pull docker.m.daocloud.io/library/node:20-alpine || true
+            sudo docker pull docker.m.daocloud.io/library/nginx:alpine || true
+            sudo docker pull docker.m.daocloud.io/library/postgres:16-alpine || true
+            sudo docker pull docker.m.daocloud.io/library/redis:7-alpine || true
+            
+            # 备份当前镜像
+            echo "备份当前镜像..."
+            if sudo docker inspect wms-backend:current &> /dev/null; then
+              sudo docker tag wms-backend:current wms-backend:previous 2>/dev/null || true
             fi
-            if ! sudo docker ps -a --format '{{.Names}}' | grep -q 'wms-redis'; then
-              echo "拉取 Redis 镜像..."
-              sudo docker pull docker.m.daocloud.io/library/redis:7-alpine
+            if sudo docker inspect wms-frontend:current &> /dev/null; then
+              sudo docker tag wms-frontend:current wms-frontend:previous 2>/dev/null || true
             fi
             
-            # 滚动更新应用容器
-            echo "执行滚动更新..."
-            $COMPOSE_CMD -f docker-compose.prod.yaml up -d --no-deps --build backend frontend
+            # 构建新镜像
+            echo "构建后端镜像..."
+            sudo docker build -t wms-backend:current ./webapi
+            
+            echo "构建前端镜像..."
+            sudo docker build -t wms-frontend:current ./webui
+            
+            # 停止旧容器
+            echo "停止旧容器..."
+            $COMPOSE_CMD -f docker-compose.prod.yaml stop backend frontend 2>/dev/null || true
+            $COMPOSE_CMD -f docker-compose.prod.yaml rm -f backend frontend 2>/dev/null || true
+            
+            # 启动新容器
+            echo "启动新容器..."
+            $COMPOSE_CMD -f docker-compose.prod.yaml up -d
             
             # 等待服务启动
             echo "等待服务启动..."
@@ -264,14 +269,21 @@ jobs:
             for i in {1..6}; do
               echo "健康检查尝试 $i/6..."
               
-              if sudo docker exec $(sudo docker ps -q -f name=backend) curl -sf http://localhost:8010/api/ping &>/dev/null; then
-                BACKEND_HEALTHY=true
-                echo "✓ 后端服务健康"
+              BACKEND_CONTAINER=$(sudo docker ps -q -f name=backend)
+              FRONTEND_CONTAINER=$(sudo docker ps -q -f name=frontend)
+              
+              if [ -n "$BACKEND_CONTAINER" ]; then
+                if sudo docker exec $BACKEND_CONTAINER curl -sf http://localhost:8010/api/ping &>/dev/null; then
+                  BACKEND_HEALTHY=true
+                  echo "✓ 后端服务健康"
+                fi
               fi
               
-              if sudo docker exec $(sudo docker ps -q -f name=frontend) curl -sf http://localhost:8011/ &>/dev/null; then
-                FRONTEND_HEALTHY=true
-                echo "✓ 前端服务健康"
+              if [ -n "$FRONTEND_CONTAINER" ]; then
+                if sudo docker exec $FRONTEND_CONTAINER curl -sf http://localhost:8011/ &>/dev/null; then
+                  FRONTEND_HEALTHY=true
+                  echo "✓ 前端服务健康"
+                fi
               fi
               
               if [ "$BACKEND_HEALTHY" = true ] && [ "$FRONTEND_HEALTHY" = true ]; then
@@ -302,9 +314,6 @@ jobs:
             echo "清理无用镜像..."
             sudo docker image prune -af --filter "until=24h"
             
-            # 登出 Registry
-            sudo docker logout ${{ env.REGISTRY }}
-            
             echo "=========================================="
             echo "✓ 部署完成！"
             echo "=========================================="
@@ -314,7 +323,6 @@ jobs:
         run: |
           echo "验证外部访问..."
           
-          # 后端健康检查
           for i in {1..10}; do
             if curl -sf http://${{ secrets.DEPLOY_HOST }}:8010/api/ping; then
               echo "✓ 后端服务可访问 (端口 8010)"
@@ -324,7 +332,6 @@ jobs:
             sleep 5
           done
           
-          # 前端健康检查
           for i in {1..10}; do
             if curl -sf http://${{ secrets.DEPLOY_HOST }}:8011/; then
               echo "✓ 前端服务可访问 (端口 8011)"
