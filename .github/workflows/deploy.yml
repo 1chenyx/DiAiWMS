@@ -116,7 +116,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: ${{ github.event.inputs.environment || 'production' }}
-      url: http://${{ secrets.DEPLOY_HOST }}:8011
     
     steps:
       - name: Checkout code
