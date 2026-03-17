@@ -46,12 +46,9 @@ ENV PATH=/root/.local/bin:$PATH
 COPY config ./config
 COPY app ./app
 
-RUN mkdir -p /backend/logs && chmod 777 /backend/logs
-
-RUN groupadd -r wms && useradd -r -g wms wms \
-    && chown -R wms:wms /backend
-
-USER wms
+RUN mkdir -p /backend/logs \
+    && chown -R 1000:1000 /backend/logs \
+    && chmod -R 777 /backend/logs
 
 EXPOSE 8010
 
